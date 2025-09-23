@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
@@ -30,7 +30,10 @@ import {
   FileText,
   Globe,
   Lock,
-  Eye
+  Eye,
+  Home,
+  Menu,
+  ArrowLeft
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -79,6 +82,48 @@ const mockTasks = [
     applicants: 15,
     skills: ["UI/UX", "Figma", "Mobile Design"],
     escrowStatus: "funded"
+  },
+  {
+    id: "4",
+    title: "React Component Library",
+    description: "Build a comprehensive React component library with TypeScript support and Storybook documentation.",
+    category: "Development",
+    budget: 1200,
+    deadline: "2024-02-25",
+    client: "DevStudio",
+    clientRating: 4.7,
+    status: "open",
+    applicants: 9,
+    skills: ["React", "TypeScript", "Storybook"],
+    escrowStatus: "pending"
+  },
+  {
+    id: "5",
+    title: "NFT Marketplace Smart Contract",
+    description: "Develop a complete NFT marketplace with minting, trading, and royalty features on Ethereum.",
+    category: "Blockchain",
+    budget: 3500,
+    deadline: "2024-03-01",
+    client: "CryptoArt",
+    clientRating: 4.9,
+    status: "open",
+    applicants: 6,
+    skills: ["Solidity", "NFT", "Web3"],
+    escrowStatus: "pending"
+  },
+  {
+    id: "6",
+    title: "Data Visualization Dashboard",
+    description: "Create interactive charts and dashboards for financial data analysis using D3.js and React.",
+    category: "Data Science",
+    budget: 900,
+    deadline: "2024-02-28",
+    client: "FinTech Corp",
+    clientRating: 4.5,
+    status: "open",
+    applicants: 14,
+    skills: ["D3.js", "React", "Data Visualization"],
+    escrowStatus: "pending"
   }
 ];
 
@@ -87,6 +132,65 @@ const mockStats = {
   activeTasks: 542,
   totalEarnings: 2840000,
   successfulTransactions: 98.5
+};
+
+// Navigation Component
+const Navigation = () => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
+  return (
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
+      <div className="container mx-auto px-6">
+        <div className="flex items-center justify-between h-16">
+          <Link to="/" className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center">
+              <Shield className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xl font-bold text-white">DecentraTask</span>
+          </Link>
+          
+          <div className="hidden md:flex items-center space-x-8">
+            <Link to="/" className="text-gray-300 hover:text-teal-400 transition-colors">
+              Home
+            </Link>
+            <Link to="/tasks" className="text-gray-300 hover:text-teal-400 transition-colors">
+              Browse Tasks
+            </Link>
+            <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
+              Post Task
+            </Button>
+          </div>
+          
+          <div className="md:hidden">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="text-white"
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
+        
+        {isMenuOpen && (
+          <div className="md:hidden py-4 border-t border-gray-800">
+            <div className="flex flex-col space-y-4">
+              <Link to="/" className="text-gray-300 hover:text-teal-400 transition-colors">
+                Home
+              </Link>
+              <Link to="/tasks" className="text-gray-300 hover:text-teal-400 transition-colors">
+                Browse Tasks
+              </Link>
+              <Button size="sm" className="bg-teal-600 hover:bg-teal-700 self-start">
+                Post Task
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </nav>
+  );
 };
 
 // Components
@@ -136,6 +240,8 @@ const TaskCard = ({ task }) => {
       case "AI/ML": return <Code className="w-4 h-4" />;
       case "Design": return <Palette className="w-4 h-4" />;
       case "Blockchain": return <Shield className="w-4 h-4" />;
+      case "Development": return <Globe className="w-4 h-4" />;
+      case "Data Science": return <TrendingUp className="w-4 h-4" />;
       default: return <FileText className="w-4 h-4" />;
     }
   };
@@ -242,8 +348,10 @@ const StatsCard = ({ icon: Icon, title, value, subtitle, color = "teal" }) => {
 };
 
 const Hero = () => {
+  const navigate = useNavigate();
+  
   return (
-    <section className="hero-section relative min-h-screen flex items-center justify-center overflow-hidden">
+    <section className="hero-section relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
       <FloatingBlockchain />
       
       <div className="container mx-auto px-6 text-center relative z-10">
@@ -264,7 +372,12 @@ const Hero = () => {
               <Plus className="w-5 h-5 mr-2" />
               Post a Task
             </Button>
-            <Button size="lg" variant="outline" className="border-teal-500 text-teal-400 hover:bg-teal-500 hover:text-white px-8 py-4 text-lg hover:scale-105 transition-transform">
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="border-teal-500 text-teal-400 hover:bg-teal-500 hover:text-white px-8 py-4 text-lg hover:scale-105 transition-transform"
+              onClick={() => navigate('/tasks')}
+            >
               <Search className="w-5 h-5 mr-2" />
               Find Tasks
             </Button>
@@ -304,62 +417,6 @@ const Hero = () => {
       </div>
       
       <div className="hero-gradient absolute inset-0 pointer-events-none" />
-    </section>
-  );
-};
-
-const TaskMarketplace = () => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  
-  const filteredTasks = mockTasks.filter(task => {
-    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         task.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === "all" || task.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-  
-  return (
-    <section className="py-20 bg-gray-950/50">
-      <div className="container mx-auto px-6">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold text-white mb-4">
-            Discover <span className="text-teal-400">Tasks</span>
-          </h2>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Browse available tasks with automatic escrow and instant payments
-          </p>
-        </div>
-        
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <Input
-              placeholder="Search tasks..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-gray-900/50 border-gray-700 text-white placeholder-gray-400 focus:border-teal-500"
-            />
-          </div>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full md:w-48 bg-gray-900/50 border-gray-700 text-white">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent className="bg-gray-900 border-gray-700 text-white">
-              <SelectItem value="all">All Categories</SelectItem>
-              <SelectItem value="AI/ML">AI/ML</SelectItem>
-              <SelectItem value="Blockchain">Blockchain</SelectItem>
-              <SelectItem value="Design">Design</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
-          ))}
-        </div>
-      </div>
     </section>
   );
 };
@@ -422,12 +479,120 @@ const Features = () => {
   );
 };
 
-const Home = () => {
+// Home Page Component
+const HomePage = () => {
   return (
     <div className="min-h-screen bg-gray-950">
       <Hero />
       <Features />
-      <TaskMarketplace />
+    </div>
+  );
+};
+
+// Tasks Page Component  
+const TasksPage = () => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const navigate = useNavigate();
+  
+  const filteredTasks = mockTasks.filter(task => {
+    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         task.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === "all" || task.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const categories = ["all", ...new Set(mockTasks.map(task => task.category))];
+  
+  return (
+    <div className="min-h-screen bg-gray-950 pt-16">
+      <div className="container mx-auto px-6 py-12">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div className="flex items-center justify-center mb-6">
+            <Button 
+              variant="ghost" 
+              onClick={() => navigate('/')}
+              className="text-teal-400 hover:text-teal-300 mr-4"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Home
+            </Button>
+          </div>
+          
+          <h1 className="text-5xl font-bold text-white mb-4">
+            Discover <span className="text-teal-400">Tasks</span>
+          </h1>
+          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+            Browse available tasks with automatic escrow and instant payments
+          </p>
+        </div>
+        
+        {/* Search and Filters */}
+        <div className="flex flex-col md:flex-row gap-4 mb-8">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Input
+              placeholder="Search tasks..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 bg-gray-900/50 border-gray-700 text-white placeholder-gray-400 focus:border-teal-500 h-12"
+            />
+          </div>
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-full md:w-48 bg-gray-900/50 border-gray-700 text-white h-12">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-900 border-gray-700 text-white">
+              {categories.map(category => (
+                <SelectItem key={category} value={category}>
+                  {category === "all" ? "All Categories" : category}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
+        {/* Results Summary */}
+        <div className="mb-8">
+          <p className="text-gray-400">
+            Showing <span className="text-teal-400 font-semibold">{filteredTasks.length}</span> tasks
+            {selectedCategory !== "all" && (
+              <span> in <span className="text-teal-400 font-semibold">{selectedCategory}</span></span>
+            )}
+            {searchTerm && (
+              <span> matching "<span className="text-teal-400 font-semibold">{searchTerm}</span>"</span>
+            )}
+          </p>
+        </div>
+        
+        {/* Task Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTasks.map((task) => (
+            <TaskCard key={task.id} task={task} />
+          ))}
+        </div>
+        
+        {filteredTasks.length === 0 && (
+          <div className="text-center py-20">
+            <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Search className="w-8 h-8 text-gray-600" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-400 mb-2">No tasks found</h3>
+            <p className="text-gray-500 mb-6">Try adjusting your search or filters</p>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setSearchTerm("");
+                setSelectedCategory("all");
+              }}
+              className="border-gray-700 text-gray-400 hover:bg-gray-800"
+            >
+              Clear Filters
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -436,8 +601,10 @@ function App() {
   return (
     <div className="App">
       <BrowserRouter>
+        <Navigation />
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<HomePage />} />
+          <Route path="/tasks" element={<TasksPage />} />
         </Routes>
       </BrowserRouter>
     </div>
