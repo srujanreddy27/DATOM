@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./components/ui/dialog";
 import { Separator } from "./components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
+import { Label } from "./components/ui/label";
 import { 
   Search, 
   Plus, 
@@ -33,7 +34,11 @@ import {
   Eye,
   Home,
   Menu,
-  ArrowLeft
+  ArrowLeft,
+  Calendar,
+  Tag,
+  Briefcase,
+  X
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -134,6 +139,19 @@ const mockStats = {
   successfulTransactions: 98.5
 };
 
+const categories = [
+  "AI/ML",
+  "Blockchain", 
+  "Design",
+  "Development",
+  "Data Science",
+  "Marketing",
+  "Writing",
+  "Translation",
+  "Photography",
+  "Video Editing"
+];
+
 // Navigation Component
 const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -156,9 +174,11 @@ const Navigation = () => {
             <Link to="/tasks" className="text-gray-300 hover:text-teal-400 transition-colors">
               Browse Tasks
             </Link>
-            <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-              Post Task
-            </Button>
+            <Link to="/post-task">
+              <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
+                Post Task
+              </Button>
+            </Link>
           </div>
           
           <div className="md:hidden">
@@ -182,9 +202,11 @@ const Navigation = () => {
               <Link to="/tasks" className="text-gray-300 hover:text-teal-400 transition-colors">
                 Browse Tasks
               </Link>
-              <Button size="sm" className="bg-teal-600 hover:bg-teal-700 self-start">
-                Post Task
-              </Button>
+              <Link to="/post-task">
+                <Button size="sm" className="bg-teal-600 hover:bg-teal-700 self-start">
+                  Post Task
+                </Button>
+              </Link>
             </div>
           </div>
         )}
@@ -331,6 +353,11 @@ const TaskCard = ({ task }) => {
 };
 
 const StatsCard = ({ icon: Icon, title, value, subtitle, color = "teal" }) => {
+  // Fix for success rate text color - ensure all text is white
+  const getTextColor = (color) => {
+    return "white"; // Force all text to be white regardless of color prop
+  };
+
   return (
     <Card className="stats-card bg-gray-900/50 backdrop-blur-sm border-gray-800 hover:border-teal-500/50 transition-all duration-300">
       <CardContent className="p-6 text-center">
@@ -340,7 +367,7 @@ const StatsCard = ({ icon: Icon, title, value, subtitle, color = "teal" }) => {
         <div className={`text-3xl font-bold text-${color}-400 mb-1`}>
           {value}
         </div>
-        <div className="text-white font-medium mb-1">{title}</div>
+        <div className={`text-${getTextColor(color)} font-medium mb-1`}>{title}</div>
         <div className="text-sm text-gray-400">{subtitle}</div>
       </CardContent>
     </Card>
@@ -368,7 +395,11 @@ const Hero = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Button size="lg" className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-4 text-lg hover:scale-105 transition-transform">
+            <Button 
+              size="lg" 
+              className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-4 text-lg hover:scale-105 transition-transform"
+              onClick={() => navigate('/post-task')}
+            >
               <Plus className="w-5 h-5 mr-2" />
               Post a Task
             </Button>
@@ -502,7 +533,7 @@ const TasksPage = () => {
     return matchesSearch && matchesCategory;
   });
 
-  const categories = ["all", ...new Set(mockTasks.map(task => task.category))];
+  const taskCategories = ["all", ...new Set(mockTasks.map(task => task.category))];
   
   return (
     <div className="min-h-screen bg-gray-950 pt-16">
@@ -544,7 +575,7 @@ const TasksPage = () => {
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent className="bg-gray-900 border-gray-700 text-white">
-              {categories.map(category => (
+              {taskCategories.map(category => (
                 <SelectItem key={category} value={category}>
                   {category === "all" ? "All Categories" : category}
                 </SelectItem>
@@ -597,6 +628,322 @@ const TasksPage = () => {
   );
 };
 
+// Post Task Page Component
+const PostTaskPage = () => {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    category: "",
+    budget: "",
+    deadline: "",
+    skills: [],
+    client: "Demo Client" // Mock client name
+  });
+  
+  const [skillInput, setSkillInput] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const addSkill = () => {
+    if (skillInput.trim() && !formData.skills.includes(skillInput.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        skills: [...prev.skills, skillInput.trim()]
+      }));
+      setSkillInput("");
+    }
+  };
+
+  const removeSkill = (skillToRemove) => {
+    setFormData(prev => ({
+      ...prev,
+      skills: prev.skills.filter(skill => skill !== skillToRemove)
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Here you would normally send to your backend
+      console.log("Task submitted:", formData);
+      
+      setSubmitSuccess(true);
+      
+      // Reset form after success
+      setTimeout(() => {
+        setFormData({
+          title: "",
+          description: "",
+          category: "",
+          budget: "",
+          deadline: "",
+          skills: [],
+          client: "Demo Client"
+        });
+        setSubmitSuccess(false);
+        navigate('/tasks');
+      }, 3000);
+      
+    } catch (error) {
+      console.error("Error submitting task:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isFormValid = formData.title && formData.description && formData.category && 
+                     formData.budget && formData.deadline;
+
+  if (submitSuccess) {
+    return (
+      <div className="min-h-screen bg-gray-950 pt-16 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-20 h-20 bg-teal-500 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+            <CheckCircle className="w-10 h-10 text-white" />
+          </div>
+          <h2 className="text-3xl font-bold text-white mb-4">Task Posted Successfully!</h2>
+          <p className="text-gray-400 mb-6">Your task has been submitted and will be visible to freelancers shortly.</p>
+          <p className="text-sm text-gray-500">Redirecting to task marketplace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 pt-16">
+      <div className="container mx-auto px-6 py-12">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <div className="flex items-center justify-center mb-6">
+              <Button 
+                variant="ghost" 
+                onClick={() => navigate('/')}
+                className="text-teal-400 hover:text-teal-300 mr-4"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Home
+              </Button>
+            </div>
+            
+            <h1 className="text-5xl font-bold text-white mb-4">
+              Post a <span className="text-teal-400">Task</span>
+            </h1>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              Create a new task with automatic escrow and blockchain validation
+            </p>
+          </div>
+
+          {/* Form */}
+          <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800">
+            <CardHeader>
+              <CardTitle className="text-2xl text-white flex items-center">
+                <Briefcase className="w-6 h-6 mr-2 text-teal-400" />
+                Task Details
+              </CardTitle>
+              <CardDescription className="text-gray-400">
+                Provide clear and detailed information about your task
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Title */}
+                <div className="space-y-2">
+                  <Label htmlFor="title" className="text-white font-medium">
+                    Task Title *
+                  </Label>
+                  <Input
+                    id="title"
+                    name="title"
+                    value={formData.title}
+                    onChange={handleInputChange}
+                    placeholder="e.g., ML Training Images - Sign Language Dataset"
+                    className="bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 focus:border-teal-500"
+                    required
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <Label htmlFor="description" className="text-white font-medium">
+                    Description *
+                  </Label>
+                  <Textarea
+                    id="description"
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    placeholder="Provide a detailed description of what you need..."
+                    rows={4}
+                    className="bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 focus:border-teal-500"
+                    required
+                  />
+                </div>
+
+                {/* Category and Budget Row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="category" className="text-white font-medium">
+                      Category *
+                    </Label>
+                    <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
+                      <SelectTrigger className="bg-gray-800/50 border-gray-700 text-white">
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-900 border-gray-700 text-white">
+                        {categories.map(category => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="budget" className="text-white font-medium">
+                      Budget (USD) *
+                    </Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Input
+                        id="budget"
+                        name="budget"
+                        type="number"
+                        value={formData.budget}
+                        onChange={handleInputChange}
+                        placeholder="500"
+                        className="pl-10 bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 focus:border-teal-500"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Deadline */}
+                <div className="space-y-2">
+                  <Label htmlFor="deadline" className="text-white font-medium">
+                    Deadline *
+                  </Label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      id="deadline"
+                      name="deadline"
+                      type="date"
+                      value={formData.deadline}
+                      onChange={handleInputChange}
+                      className="pl-10 bg-gray-800/50 border-gray-700 text-white focus:border-teal-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Skills */}
+                <div className="space-y-2">
+                  <Label className="text-white font-medium">
+                    Required Skills
+                  </Label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Input
+                        value={skillInput}
+                        onChange={(e) => setSkillInput(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}
+                        placeholder="e.g., React, Python, Machine Learning"
+                        className="pl-10 bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 focus:border-teal-500"
+                      />
+                    </div>
+                    <Button 
+                      type="button" 
+                      onClick={addSkill}
+                      variant="outline"
+                      className="border-teal-500 text-teal-400 hover:bg-teal-500 hover:text-white"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  
+                  {formData.skills.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {formData.skills.map((skill, index) => (
+                        <Badge 
+                          key={index} 
+                          variant="secondary" 
+                          className="bg-teal-500/20 text-teal-300 border-teal-500/30 flex items-center gap-1"
+                        >
+                          {skill}
+                          <X 
+                            className="w-3 h-3 cursor-pointer hover:text-red-400" 
+                            onClick={() => removeSkill(skill)}
+                          />
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Submit Button */}
+                <div className="pt-6 border-t border-gray-800">
+                  <div className="flex flex-col sm:flex-row gap-4 justify-end">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => navigate('/')}
+                      className="border-gray-700 text-gray-400 hover:bg-gray-800"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={!isFormValid || isSubmitting}
+                      className="bg-teal-600 hover:bg-teal-700 text-white px-8 disabled:bg-gray-700 disabled:cursor-not-allowed"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          Posting Task...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Post Task
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {!isFormValid && (
+                    <p className="text-red-400 text-sm mt-2 text-right">
+                      Please fill in all required fields
+                    </p>
+                  )}
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   return (
     <div className="App">
@@ -605,6 +952,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/post-task" element={<PostTaskPage />} />
         </Routes>
       </BrowserRouter>
     </div>
