@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, useNavigate, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, Link } from "react-router-dom";
 import axios from "axios";
+import { ethers } from "ethers";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
 import { Badge } from "./components/ui/badge";
@@ -18,7 +19,7 @@ import {
   Search, 
   Plus, 
   Shield, 
-  Zap, 
+  Zap,
   Users, 
   DollarSign, 
   Clock, 
@@ -35,14 +36,19 @@ import {
   Home,
   Menu,
   ArrowLeft,
-  Calendar,
+  Calendar as CalendarIcon,
   Tag,
   Briefcase,
   X
 } from "lucide-react";
+import { Calendar } from "./components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 const API = `${BACKEND_URL}/api`;
+const ESCROW_ADDRESS = process.env.REACT_APP_ESCROW_ADDRESS || "0x0000000000000000000000000000000000000000"; // TODO: set in frontend/.env
+const ESCROW_RECEIVE = "0x2Ef18250a69D9Fa3492Ff7098604E7b7e62E3Fd4"; // Address where client funds are sent
+const SEPOLIA_CHAIN_ID_HEX = "0xaa36a7"; // 11155111
 
 // Mock data
 const mockTasks = [
@@ -139,6 +145,36 @@ const mockStats = {
   successfulTransactions: 98.5
 };
 
+// Date helpers
+const toStartOfDay = (date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const isDeadlineInFutureOrToday = (deadlineStr) => {
+  if (!deadlineStr) return false;
+  const today = toStartOfDay(new Date());
+  const deadline = toStartOfDay(new Date(deadlineStr));
+  return deadline >= today;
+};
+
+// Map API task (snake_case) to UI task (camelCase fields expected by components)
+const mapTaskFromApi = (apiTask) => ({
+  id: apiTask.id,
+  title: apiTask.title,
+  description: apiTask.description,
+  category: apiTask.category,
+  budget: apiTask.budget,
+  deadline: apiTask.deadline,
+  client: apiTask.client,
+  clientRating: apiTask.client_rating ?? 4.5,
+  status: apiTask.status,
+  applicants: apiTask.applicants ?? 0,
+  skills: apiTask.skills ?? [],
+  escrowStatus: apiTask.escrow_status ?? "pending",
+});
+
 const categories = [
   "AI/ML",
   "Blockchain", 
@@ -155,6 +191,42 @@ const categories = [
 // Navigation Component
 const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [account, setAccount] = useState(null);
+
+  const connectWallet = async () => {
+    try {
+      if (!window.ethereum) {
+        alert("MetaMask not found. Please install it.");
+        return;
+      }
+      try {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
+        });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [{
+              chainId: SEPOLIA_CHAIN_ID_HEX,
+              chainName: "Sepolia Test Network",
+              nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+              rpcUrls: ["https://sepolia.infura.io/v3/"],
+              blockExplorerUrls: ["https://sepolia.etherscan.io"],
+            }],
+          });
+        } else {
+          throw switchError;
+        }
+      }
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      setAccount(accounts[0]);
+    } catch (err) {
+      console.error("Wallet connection failed", err);
+      alert("Failed to connect wallet: " + (err?.message || err));
+    }
+  };
   
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
@@ -174,6 +246,12 @@ const Navigation = () => {
             <Link to="/tasks" className="text-gray-300 hover:text-teal-400 transition-colors">
               Browse Tasks
             </Link>
+            <a href="/login.html" className="text-gray-300 hover:text-teal-400 transition-colors">
+              Login
+            </a>
+            <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800" onClick={connectWallet}>
+              {account ? `${account.slice(0,6)}...${account.slice(-4)}` : "Connect Wallet"}
+            </Button>
             <Link to="/post-task">
               <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
                 Post Task
@@ -202,6 +280,9 @@ const Navigation = () => {
               <Link to="/tasks" className="text-gray-300 hover:text-teal-400 transition-colors">
                 Browse Tasks
               </Link>
+              <a href="/login.html" className="text-gray-300 hover:text-teal-400 transition-colors">
+                Login
+              </a>
               <Link to="/post-task">
                 <Button size="sm" className="bg-teal-600 hover:bg-teal-700 self-start">
                   Post Task
@@ -256,7 +337,9 @@ const FloatingBlockchain = () => {
   );
 };
 
-const TaskCard = ({ task }) => {
+const EthSymbol = () => <span className="text-emerald-400 mr-1">Ξ</span>;
+
+const TaskCard = ({ task, onFund, finished = false }) => {
   const getCategoryIcon = (category) => {
     switch (category) {
       case "AI/ML": return <Code className="w-4 h-4" />;
@@ -300,8 +383,8 @@ const TaskCard = ({ task }) => {
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-emerald-400" />
-            <span className="text-xl font-bold text-emerald-400">${task.budget}</span>
+            <EthSymbol />
+            <span className="text-xl font-bold text-emerald-400">{task.budget} ETH</span>
           </div>
           <div className="flex items-center gap-1 text-sm text-gray-400">
             <Clock className="w-4 h-4" />
@@ -338,14 +421,20 @@ const TaskCard = ({ task }) => {
         
         <div className="flex items-center justify-between pt-2">
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${task.escrowStatus === 'funded' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            <div className={`w-2 h-2 rounded-full ${finished ? 'bg-amber-500' : (task.escrowStatus === 'funded' ? 'bg-emerald-500' : 'bg-amber-500')}`} />
             <span className="text-xs text-gray-400">
-              Escrow {task.escrowStatus === 'funded' ? 'Funded' : 'Pending'}
+              Escrow {task.escrowStatus === 'funded' ? 'Paid' : 'Pending'}
             </span>
           </div>
-          <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white">
-            Apply Now
-          </Button>
+          {task.escrowStatus === 'funded' ? (
+            <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white">
+              Apply Now
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="border-teal-600 text-teal-400 hover:bg-teal-600 hover:text-white" onClick={() => onFund?.(task)}>
+              Fund Escrow
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -374,7 +463,7 @@ const StatsCard = ({ icon: Icon, title, value, subtitle, color = "teal" }) => {
   );
 };
 
-const Hero = () => {
+const Hero = ({ totalTasks, liveTasks, totalPaidEth, isLoading }) => {
   const navigate = useNavigate();
   
   return (
@@ -418,30 +507,34 @@ const Hero = () => {
             <StatsCard 
               icon={TrendingUp}
               title="Total Tasks"
-              value={<AnimatedCounter target={mockStats.totalTasks} />}
+              value={isLoading ? <AnimatedCounter target={mockStats.totalTasks} /> : <AnimatedCounter target={totalTasks} />}
               subtitle="And growing"
               color="teal"
             />
             <StatsCard 
               icon={Zap}
-              title="Active Tasks"
-              value={<AnimatedCounter target={mockStats.activeTasks} />}
+              title="Live Tasks"
+              value={isLoading ? <AnimatedCounter target={mockStats.activeTasks} /> : <AnimatedCounter target={liveTasks} />}
               subtitle="Right now"
               color="emerald"
             />
             <StatsCard 
               icon={DollarSign}
               title="Total Paid"
-              value={<AnimatedCounter target={mockStats.totalEarnings} prefix="$" />}
+              value={
+                isLoading
+                  ? (<><EthSymbol />{mockStats.totalEarnings.toLocaleString()}</>)
+                  : (<><EthSymbol />{Number(totalPaidEth).toLocaleString()}</>)
+              }
               subtitle="To freelancers"
               color="amber"
             />
             <StatsCard 
               icon={CheckCircle}
               title="Success Rate"
-              value={<AnimatedCounter target={mockStats.successfulTransactions} suffix="%" />}
+              value={<AnimatedCounter target={98.5} suffix="%" />}
               subtitle="Completed tasks"
-              color="green"
+              color="amber"
             />
           </div>
         </div>
@@ -476,7 +569,7 @@ const Features = () => {
       icon: Lock,
       title: "Trustless System",
       description: "No intermediaries needed - blockchain ensures fair transactions",
-      color: "cyan"
+      color: "amber"
     }
   ];
   
@@ -512,9 +605,43 @@ const Features = () => {
 
 // Home Page Component
 const HomePage = () => {
+  const [homeTasks, setHomeTasks] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    let intervalId;
+
+    const fetchTasks = async () => {
+      try {
+        const { data } = await axios.get(`${API}/tasks`);
+        if (isMounted) setHomeTasks(Array.isArray(data) ? data.map(mapTaskFromApi) : []);
+      } catch {
+        if (isMounted) setHomeTasks(mockTasks);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    fetchTasks();
+    // Refresh periodically for real-time-ish stats
+    intervalId = setInterval(fetchTasks, 30000);
+
+    return () => {
+      isMounted = false;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, []);
+
+  const totalTasks = homeTasks.length;
+  const liveTasksCount = homeTasks.filter(t => isDeadlineInFutureOrToday(t.deadline)).length;
+  const totalPaidEth = homeTasks
+    .filter(t => t.escrowStatus === 'funded')
+    .reduce((sum, t) => sum + (Number(t.budget) || 0), 0);
+
   return (
     <div className="min-h-screen bg-gray-950">
-      <Hero />
+      <Hero totalTasks={totalTasks} liveTasks={liveTasksCount} totalPaidEth={totalPaidEth} isLoading={isLoading} />
       <Features />
     </div>
   );
@@ -524,17 +651,132 @@ const HomePage = () => {
 const TasksPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [tasks, setTasks] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [flashMessage, setFlashMessage] = useState(location?.state?.flash || "");
   
-  const filteredTasks = mockTasks.filter(task => {
+  useEffect(() => {
+    let isMounted = true;
+    const fetchTasks = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const { data } = await axios.get(`${API}/tasks`);
+        if (isMounted) {
+          const mapped = Array.isArray(data) ? data.map(mapTaskFromApi) : [];
+          // Restore locally marked funded tasks
+          let fundedIds = [];
+          try {
+            fundedIds = JSON.parse(localStorage.getItem('fundedTaskIds') || '[]');
+          } catch {}
+          const merged = mapped.map(t => fundedIds.includes(t.id) ? { ...t, escrowStatus: 'funded' } : t);
+          setTasks(merged);
+        }
+      } catch (err) {
+        // Fallback to mock data so UI still works
+        if (isMounted) {
+          setLoadError("Failed to load from backend. Showing demo data.");
+          // Apply fundedIds to mock too
+          let fundedIds = [];
+          try {
+            fundedIds = JSON.parse(localStorage.getItem('fundedTaskIds') || '[]');
+          } catch {}
+          const merged = mockTasks.map(t => fundedIds.includes(t.id) ? { ...t, escrowStatus: 'funded' } : t);
+          setTasks(merged);
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    fetchTasks();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Consume one-time flash message from navigation state
+  useEffect(() => {
+    if (location?.state?.flash) {
+      // Clear state so it doesn't persist on refresh/back
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
+  
+  const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          task.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === "all" || task.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const taskCategories = ["all", ...new Set(mockTasks.map(task => task.category))];
+  const taskCategories = ["all", ...new Set(tasks.map(task => task.category))];
+
+  // Auto re-validation ticker to move tasks when deadlines pass without reload
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  const liveTasks = filteredTasks.filter(t => isDeadlineInFutureOrToday(t.deadline));
+  const finishedTasks = filteredTasks.filter(t => !isDeadlineInFutureOrToday(t.deadline));
   
+  const onFundTask = async (task) => {
+    try {
+      if (!window.ethereum) {
+        alert("MetaMask not found.");
+        return;
+      }
+      try {
+        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }] });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [{
+              chainId: SEPOLIA_CHAIN_ID_HEX,
+              chainName: "Sepolia Test Network",
+              nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+              rpcUrls: ["https://sepolia.infura.io/v3/"],
+              blockExplorerUrls: ["https://sepolia.etherscan.io"],
+            }],
+          });
+        } else {
+          throw switchError;
+        }
+      }
+      if (!ESCROW_RECEIVE || ESCROW_RECEIVE === "0x0000000000000000000000000000000000000000") {
+        alert("Escrow receive address not set.");
+        return;
+      }
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const valueWei = ethers.parseEther(String(task.budget));
+      const tx = await signer.sendTransaction({ to: ESCROW_RECEIVE, value: valueWei });
+      await tx.wait();
+
+      // Local optimistic update: mark as funded and persist
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, escrowStatus: 'funded' } : t));
+      try {
+        const funded = JSON.parse(localStorage.getItem('fundedTaskIds') || '[]');
+        if (!funded.includes(task.id)) {
+          funded.push(task.id);
+          localStorage.setItem('fundedTaskIds', JSON.stringify(funded));
+        }
+      } catch {}
+
+      // Refresh tasks from backend in background (best-effort)
+      axios.get(`${API}/tasks`).then(({ data }) => {
+        setTasks(Array.isArray(data) ? data.map(mapTaskFromApi) : []);
+      }).catch(() => {});
+      alert("Escrow funded successfully.");
+    } catch (err) {
+      console.error(err);
+      alert("Funding failed: " + (err?.message || err));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-950 pt-16">
       <div className="container mx-auto px-6 py-12">
@@ -558,6 +800,16 @@ const TasksPage = () => {
             Browse available tasks with automatic escrow and instant payments
           </p>
         </div>
+
+        {/* Flash success message */}
+        {flashMessage && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between bg-emerald-900/40 border border-emerald-700 text-emerald-300 rounded-md px-4 py-3">
+              <span>{flashMessage}</span>
+              <Button size="sm" variant="ghost" className="text-emerald-300 hover:text-white" onClick={() => setFlashMessage("")}>Dismiss</Button>
+            </div>
+          </div>
+        )}
         
         {/* Search and Filters */}
         <div className="flex flex-col md:flex-row gap-4 mb-8">
@@ -587,7 +839,13 @@ const TasksPage = () => {
         {/* Results Summary */}
         <div className="mb-8">
           <p className="text-gray-400">
-            Showing <span className="text-teal-400 font-semibold">{filteredTasks.length}</span> tasks
+            {isLoading ? (
+              <span>Loading tasks…</span>
+            ) : (
+              <>
+                Showing <span className="text-teal-400 font-semibold">{filteredTasks.length}</span> tasks
+              </>
+            )}
             {selectedCategory !== "all" && (
               <span> in <span className="text-teal-400 font-semibold">{selectedCategory}</span></span>
             )}
@@ -595,16 +853,44 @@ const TasksPage = () => {
               <span> matching "<span className="text-teal-400 font-semibold">{searchTerm}</span>"</span>
             )}
           </p>
+          {loadError && (
+            <p className="text-amber-400 text-sm mt-2">{loadError}</p>
+          )}
         </div>
         
-        {/* Task Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
-          ))}
+        {/* Live Tasks */}
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold text-white mb-4 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            Live Tasks
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {liveTasks.map((task) => (
+              <TaskCard key={task.id} task={task} onFund={onFundTask} />
+            ))}
+          </div>
+          {!isLoading && liveTasks.length === 0 && (
+            <p className="text-gray-500 mt-3">No live tasks.</p>
+          )}
+        </div>
+
+        {/* Finished Tasks */}
+        <div>
+          <h2 className="text-2xl font-semibold text-white mb-4 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            Finished Tasks
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {finishedTasks.map((task) => (
+              <TaskCard key={task.id} task={task} finished />
+            ))}
+          </div>
+          {!isLoading && finishedTasks.length === 0 && (
+            <p className="text-gray-500 mt-3">No finished tasks.</p>
+          )}
         </div>
         
-        {filteredTasks.length === 0 && (
+        {!isLoading && filteredTasks.length === 0 && (
           <div className="text-center py-20">
             <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
               <Search className="w-8 h-8 text-gray-600" />
@@ -644,6 +930,7 @@ const PostTaskPage = () => {
   const [skillInput, setSkillInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -663,6 +950,21 @@ const PostTaskPage = () => {
     }
   };
 
+  const formatDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const isDateDisabled = (date) => {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const cmp = new Date(date);
+    cmp.setHours(0,0,0,0);
+    return cmp < today; // disable past dates
+  };
+
   const removeSkill = (skillToRemove) => {
     setFormData(prev => ({
       ...prev,
@@ -675,28 +977,67 @@ const PostTaskPage = () => {
     setIsSubmitting(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Here you would normally send to your backend
-      console.log("Task submitted:", formData);
-      
-      setSubmitSuccess(true);
-      
-      // Reset form after success
-      setTimeout(() => {
-        setFormData({
-          title: "",
-          description: "",
-          category: "",
-          budget: "",
-          deadline: "",
-          skills: [],
-          client: "Demo Client"
-        });
-        setSubmitSuccess(false);
-        navigate('/tasks');
-      }, 3000);
+      const payload = {
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        budget: Number(formData.budget),
+        deadline: formData.deadline,
+        client: formData.client,
+        skills: formData.skills,
+      };
+      // Create on backend
+      const { data: created } = await axios.post(`${API}/tasks`, payload);
+
+      // Pay ETH to escrow on Sepolia
+      if (!window.ethereum) {
+        throw new Error("MetaMask not found. Install MetaMask to pay in ETH.");
+      }
+      try {
+        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }] });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [{
+              chainId: SEPOLIA_CHAIN_ID_HEX,
+              chainName: "Sepolia Test Network",
+              nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+              rpcUrls: ["https://sepolia.infura.io/v3/"],
+              blockExplorerUrls: ["https://sepolia.etherscan.io"],
+            }],
+          });
+        } else {
+          throw switchError;
+        }
+      }
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const valueWei = ethers.parseEther(String(payload.budget));
+      if (!ESCROW_RECEIVE || ESCROW_RECEIVE === "0x0000000000000000000000000000000000000000") {
+        throw new Error("Escrow receive address not set.");
+      }
+      const tx = await signer.sendTransaction({ to: ESCROW_RECEIVE, value: valueWei });
+      await tx.wait();
+      // Persist as funded locally for immediate UX
+      try {
+        const funded = JSON.parse(localStorage.getItem('fundedTaskIds') || '[]');
+        if (created?.id && !funded.includes(created.id)) {
+          funded.push(created.id);
+          localStorage.setItem('fundedTaskIds', JSON.stringify(funded));
+        }
+      } catch {}
+      // Redirect with success flash
+      setFormData({
+        title: "",
+        description: "",
+        category: "",
+        budget: "",
+        deadline: "",
+        skills: [],
+        client: "Demo Client"
+      });
+      navigate('/tasks', { state: { flash: 'Task posted successfully. Escrow paid.' } });
       
     } catch (error) {
       console.error("Error submitting task:", error);
@@ -817,18 +1158,20 @@ const PostTaskPage = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="budget" className="text-white font-medium">
-                      Budget (USD) *
+                      Budget (ETH) *
                     </Label>
                     <div className="relative">
-                      <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400">Ξ</span>
                       <Input
                         id="budget"
                         name="budget"
                         type="number"
                         value={formData.budget}
                         onChange={handleInputChange}
-                        placeholder="500"
-                        className="pl-10 bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 focus:border-teal-500"
+                        placeholder="0.1"
+                        step="0.0001"
+                        min="0"
+                        className="pl-8 bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 focus:border-teal-500"
                         required
                       />
                     </div>
@@ -840,18 +1183,32 @@ const PostTaskPage = () => {
                   <Label htmlFor="deadline" className="text-white font-medium">
                     Deadline *
                   </Label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <Input
-                      id="deadline"
-                      name="deadline"
-                      type="date"
-                      value={formData.deadline}
-                      onChange={handleInputChange}
-                      className="pl-10 bg-gray-800/50 border-gray-700 text-white focus:border-teal-500"
-                      required
-                    />
-                  </div>
+                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal bg-gray-800/50 border-gray-700 text-white"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4 text-gray-400" />
+                        {formData.deadline ? formData.deadline : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-gray-900 border-gray-800 text-white" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.deadline ? new Date(formData.deadline) : undefined}
+                        onSelect={(date) => {
+                          if (!date || isDateDisabled(date)) return;
+                          const val = formatDate(date);
+                          setFormData(prev => ({ ...prev, deadline: val }));
+                          setIsCalendarOpen(false);
+                        }}
+                        disabled={isDateDisabled}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 {/* Skills */}
