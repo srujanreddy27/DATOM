@@ -192,6 +192,49 @@ const categories = [
 const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [account, setAccount] = useState(null);
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check authentication status on component mount
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      try {
+        // Check for token in URL parameters (from OAuth redirect)
+        const urlParams = new URLSearchParams(window.location.search);
+        const tokenFromUrl = urlParams.get('token');
+        
+        if (tokenFromUrl) {
+          localStorage.setItem('access_token', tokenFromUrl);
+          // Clean up URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        
+        const token = localStorage.getItem('access_token');
+        if (token) {
+          const response = await axios.get(`${BACKEND_URL}/api/auth/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          setUser(response.data);
+        }
+      } catch (error) {
+        console.error('Authentication check failed:', error);
+        // Token is invalid, remove it
+        localStorage.removeItem('access_token');
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkAuthStatus();
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem('access_token');
+    setUser(null);
+    // Redirect to login page
+    window.location.href = '/login.html';
+  };
 
   const connectWallet = async () => {
     try {
@@ -246,9 +289,20 @@ const Navigation = () => {
             <Link to="/tasks" className="text-gray-300 hover:text-teal-400 transition-colors">
               Browse Tasks
             </Link>
-            <a href="/login.html" className="text-gray-300 hover:text-teal-400 transition-colors">
-              Login
-            </a>
+            {isLoading ? (
+              <span className="text-gray-400">Loading...</span>
+            ) : user ? (
+              <div className="flex items-center space-x-4">
+                <span className="text-gray-300">Welcome, {user.username}</span>
+                <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800" onClick={logout}>
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              <a href="/login.html" className="text-gray-300 hover:text-teal-400 transition-colors">
+                Login
+              </a>
+            )}
             <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800" onClick={connectWallet}>
               {account ? `${account.slice(0,6)}...${account.slice(-4)}` : "Connect Wallet"}
             </Button>
@@ -280,9 +334,20 @@ const Navigation = () => {
               <Link to="/tasks" className="text-gray-300 hover:text-teal-400 transition-colors">
                 Browse Tasks
               </Link>
-              <a href="/login.html" className="text-gray-300 hover:text-teal-400 transition-colors">
-                Login
-              </a>
+              {isLoading ? (
+                <span className="text-gray-400">Loading...</span>
+              ) : user ? (
+                <div className="flex flex-col space-y-2">
+                  <span className="text-gray-300">Welcome, {user.username}</span>
+                  <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800 self-start" onClick={logout}>
+                    Logout
+                  </Button>
+                </div>
+              ) : (
+                <a href="/login.html" className="text-gray-300 hover:text-teal-400 transition-colors">
+                  Login
+                </a>
+              )}
               <Link to="/post-task">
                 <Button size="sm" className="bg-teal-600 hover:bg-teal-700 self-start">
                   Post Task

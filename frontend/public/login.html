@@ -188,6 +188,17 @@
       background: none;
       border-top: 4px solid #000;
     }
+    .mouth.whistle {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: none;
+      border: 3px solid #000;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+      transform: translateX(-50%) rotate(0deg);
+    }
 
     /* Tear for extra realism when sad */
     .tear {
@@ -329,6 +340,132 @@
     .social-btn:hover { border-color: #c8c8c8; }
 
     .hidden { display: none; }
+
+    /* Celebration Modal Styles */
+    .celebration-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .celebration-modal.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .celebration-content {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 40px;
+      border-radius: 20px;
+      text-align: center;
+      color: white;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      transform: scale(0.8);
+      transition: transform 0.3s ease;
+      max-width: 400px;
+      width: 90%;
+    }
+
+    .celebration-modal.show .celebration-content {
+      transform: scale(1);
+    }
+
+    .celebration-icon {
+      font-size: 80px;
+      margin-bottom: 20px;
+      animation: bounce 1s ease-in-out;
+    }
+
+    .celebration-title {
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      animation: slideInUp 0.6s ease-out 0.2s both;
+    }
+
+    .celebration-message {
+      font-size: 18px;
+      margin-bottom: 25px;
+      opacity: 0.9;
+      animation: slideInUp 0.6s ease-out 0.4s both;
+    }
+
+    .celebration-button {
+      background: rgba(255, 255, 255, 0.2);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      padding: 12px 30px;
+      border-radius: 25px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      animation: slideInUp 0.6s ease-out 0.6s both;
+    }
+
+    .celebration-button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    /* Animations */
+    @keyframes bounce {
+      0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+      }
+      40% {
+        transform: translateY(-20px);
+      }
+      60% {
+        transform: translateY(-10px);
+      }
+    }
+
+    @keyframes slideInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes confetti {
+      0% {
+        transform: translateY(-100vh) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0;
+      }
+    }
+
+    .confetti {
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      background: #ff6b6b;
+      animation: confetti 3s linear infinite;
+      z-index: 10001;
+    }
+
+    .confetti:nth-child(2n) { background: #4ecdc4; animation-delay: 0.5s; }
+    .confetti:nth-child(3n) { background: #45b7d1; animation-delay: 1s; }
+    .confetti:nth-child(4n) { background: #f9ca24; animation-delay: 1.5s; }
+    .confetti:nth-child(5n) { background: #6c5ce7; animation-delay: 2s; }
   </style>
 </head>
 <body>
@@ -414,10 +551,16 @@
     </div>
   </div>
 
-  <!-- Firebase SDKs for Google Auth -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore-compat.js"></script>
+  <!-- Celebration Modal -->
+  <div class="celebration-modal" id="celebrationModal">
+    <div class="celebration-content">
+      <div class="celebration-icon">🎉</div>
+      <div class="celebration-title">Welcome to DecentraTask!</div>
+      <div class="celebration-message">You've successfully logged in. Your decentralized journey begins now!</div>
+      <button class="celebration-button" onclick="closeCelebration()">Let's Get Started</button>
+    </div>
+  </div>
+
   <!-- Backend auth (FastAPI) integration -->
 
   <script>
@@ -430,7 +573,7 @@
     })();
 
     // Backend base URL (change if backend served elsewhere)
-    const API_BASE = (window.__API_BASE__) || (window.location.origin);
+    const API_BASE = (window.__API_BASE__) || "http://localhost:8000";
     const API_AUTH = API_BASE + '/api/auth';
 
     // Helpers
@@ -495,6 +638,16 @@
       togglePassword.textContent = showing ? '👁️' : '🙈';
       forceGazeUp = passwordInput.type === 'text';
       setGazeUp();
+      
+      // Add mouth animation when clicking eye
+      mouths.forEach((mouth) => {
+        mouth.classList.remove('flat', 'smile', 'sad', 'whistle');
+        mouth.classList.add('whistle');
+        setTimeout(() => {
+          mouth.classList.remove('whistle');
+          mouth.classList.add('flat');
+        }, 1000);
+      });
     });
 
     togglePasswordSignup.addEventListener('click', () => {
@@ -503,6 +656,16 @@
       togglePasswordSignup.textContent = showing ? '👁️' : '🙈';
       forceGazeUp = signupPasswordInput.type === 'text';
       setGazeUp();
+      
+      // Add mouth animation when clicking eye
+      mouths.forEach((mouth) => {
+        mouth.classList.remove('flat', 'smile', 'sad', 'whistle');
+        mouth.classList.add('whistle');
+        setTimeout(() => {
+          mouth.classList.remove('whistle');
+          mouth.classList.add('flat');
+        }, 1000);
+      });
     });
 
     // Eye tracking
@@ -634,9 +797,7 @@
         const data = await res.json();
         if (data && data.access_token) {
           saveToken(data.access_token);
-          alert('Login Successful 🎉');
-          // Optional: redirect
-          // window.location.href = '/';
+          showCelebration();
         } else {
           throw new Error('Invalid response from server');
         }
@@ -681,9 +842,7 @@
         const data = await res.json();
         if (data && data.access_token) {
           saveToken(data.access_token);
-          alert('Account created! You are now signed in.');
-          // Optional: redirect
-          // window.location.href = '/';
+          showCelebration();
         } else {
           throw new Error('Invalid response from server');
         }
@@ -696,68 +855,27 @@
       }
     });
     
-    // Firebase config (use your project config)
-    window.FIREBASE_CONFIG = {
-      apiKey: "AIzaSyAHbgvx-U51cUdLKuT0pcp0Mt82ooWjAlI",
-      authDomain: "datom-2b7ff.firebaseapp.com",
-      projectId: "datom-2b7ff",
-      storageBucket: "datom-2b7ff.firebasestorage.app",
-      messagingSenderId: "1069100540873",
-      appId: "1:1069100540873:web:a56adda20c39192561be18",
-      measurementId: "G-QZXH09KTFC"
-    };
-    (function initFirebase() {
-      try { firebase.initializeApp(window.FIREBASE_CONFIG); } catch (e) {}
-    })();
-    const fbAuth = (function(){ try { return firebase.auth(); } catch(e){ return null; } })();
     
-    // Handle redirect result for Google sign-in
-    if (fbAuth) {
-      fbAuth.getRedirectResult().then(async (result) => {
-        if (result && result.user) {
-          try {
-            const idToken = await result.user.getIdToken();
-            // Optionally store under a separate key for Firebase
-            try { localStorage.setItem('firebase_id_token', idToken); } catch (e) {}
-            alert('Signed in with Google!');
-          } catch (e) {
-            showErrorMessage('Failed to complete Google sign-in');
-          }
-        }
-      }).catch((error) => {
-        showErrorMessage(error && error.message ? error.message : 'Google sign-in failed');
-      });
+    // Handle OAuth redirect with token
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token');
+    if (tokenFromUrl) {
+      try {
+        localStorage.setItem('access_token', tokenFromUrl);
+        showCelebration();
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        showErrorMessage('Failed to complete Google sign-in');
+      }
     }
 
-    // Google sign-in via Firebase (popup with redirect fallback)
+    // Google sign-in via backend OAuth
     function googleSignIn() {
-      if (!fbAuth) {
-        showErrorMessage('Google sign-in unavailable: Firebase not initialized');
-        return;
-      }
-      const provider = new firebase.auth.GoogleAuthProvider();
-      provider.addScope('email');
-      provider.addScope('profile');
-      fbAuth.signInWithPopup(provider)
-        .then(async (cred) => {
-          try {
-            const idToken = await cred.user.getIdToken();
-            try { localStorage.setItem('firebase_id_token', idToken); } catch (e) {}
-            alert('Signed in with Google!');
-          } catch (e) {
-            showErrorMessage('Failed to retrieve ID token');
-          }
-        })
-        .catch((err) => {
-          const code = err && err.code ? String(err.code) : '';
-          if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user' || code === 'auth/operation-not-supported-in-this-environment') {
-            fbAuth.signInWithRedirect(provider).catch((redirectErr) => {
-              showErrorMessage(redirectErr && redirectErr.message ? redirectErr.message : 'Google sign-in failed');
-            });
-          } else {
-            showErrorMessage(err && err.message ? err.message : 'Google sign-in failed');
-          }
-        });
+      // Directly redirect to backend Google OAuth endpoint
+      // Use the current page URL as redirect target
+      const currentUrl = window.location.href;
+      window.location.href = `${API_BASE}/api/auth/google/login?redirect=${encodeURIComponent(currentUrl)}`;
     }
     
     // Helper function to show error messages
@@ -774,6 +892,50 @@
     }
     googleBtn.addEventListener('click', googleSignIn);
     googleBtnSignup.addEventListener('click', googleSignIn);
+
+    // Celebration Functions
+    function showCelebration() {
+      const modal = document.getElementById('celebrationModal');
+      modal.classList.add('show');
+      createConfetti();
+      
+      // Auto-close after 5 seconds if user doesn't click
+      setTimeout(() => {
+        if (modal.classList.contains('show')) {
+          closeCelebration();
+        }
+      }, 5000);
+    }
+
+    function closeCelebration() {
+      const modal = document.getElementById('celebrationModal');
+      modal.classList.remove('show');
+      clearConfetti();
+      
+      // Redirect to main app after a short delay
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 300);
+    }
+
+    function createConfetti() {
+      const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#6c5ce7', '#a29bfe', '#fd79a8'];
+      
+      for (let i = 0; i < 50; i++) {
+        const confetti = document.createElement('div');
+        confetti.className = 'confetti';
+        confetti.style.left = Math.random() * 100 + 'vw';
+        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        confetti.style.animationDelay = Math.random() * 3 + 's';
+        confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+        document.body.appendChild(confetti);
+      }
+    }
+
+    function clearConfetti() {
+      const confettiElements = document.querySelectorAll('.confetti');
+      confettiElements.forEach(el => el.remove());
+    }
   </script>
 </body>
 </html>

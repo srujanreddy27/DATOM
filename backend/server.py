@@ -547,6 +547,10 @@ def build_google_session(state: Optional[str] = None):
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",
     ]
+    # Allow insecure transport for localhost development
+    import os
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+    
     return OAuth2Session(
         GOOGLE_CLIENT_ID,
         scope=scope,
@@ -585,8 +589,12 @@ async def google_callback(request: Request):
             client_secret=GOOGLE_CLIENT_SECRET,
             authorization_response=str(request.url),
         )
-    except Exception:
-        raise HTTPException(status_code=400, detail="Failed to exchange token")
+    except Exception as e:
+        print(f"OAuth token exchange error: {e}")
+        print(f"Client ID: {GOOGLE_CLIENT_ID}")
+        print(f"Redirect URI: {OAUTH_REDIRECT_URI}")
+        print(f"Request URL: {request.url}")
+        raise HTTPException(status_code=400, detail=f"Failed to exchange token: {str(e)}")
 
     # Get user info
     try:
@@ -752,7 +760,12 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001", 
+        "http://127.0.0.1:3000",
+        "*"  # Allow all origins for development
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
