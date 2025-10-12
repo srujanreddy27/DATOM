@@ -202,19 +202,42 @@ const Navigation = () => {
         // Check for token in URL parameters (from OAuth redirect)
         const urlParams = new URLSearchParams(window.location.search);
         const tokenFromUrl = urlParams.get('token');
-        
+
         if (tokenFromUrl) {
           localStorage.setItem('access_token', tokenFromUrl);
           // Clean up URL
           window.history.replaceState({}, document.title, window.location.pathname);
         }
-        
+
         const token = localStorage.getItem('access_token');
         if (token) {
-          const response = await axios.get(`${BACKEND_URL}/api/auth/me`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          setUser(response.data);
+          try {
+            // Try to get user data from backend
+            const response = await axios.get(`${BACKEND_URL}/api/auth/me`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            setUser(response.data);
+          } catch (backendError) {
+            // If backend fails, try to decode the token to get user info
+            try {
+              const tokenData = JSON.parse(atob(token));
+              if (tokenData && tokenData.email) {
+                // Create a user object from the token with proper name handling
+                const mockUser = {
+                  id: tokenData.sub,
+                  username: tokenData.name || tokenData.email.split('@')[0],
+                  email: tokenData.email,
+                  photoURL: tokenData.picture,
+                  user_type: 'freelancer'
+                };
+                setUser(mockUser);
+              }
+            } catch (decodeError) {
+              console.error('Token decode failed:', decodeError);
+              localStorage.removeItem('access_token');
+              setUser(null);
+            }
+          }
         }
       } catch (error) {
         console.error('Authentication check failed:', error);
@@ -225,7 +248,7 @@ const Navigation = () => {
         setIsLoading(false);
       }
     };
-    
+
     checkAuthStatus();
   }, []);
 

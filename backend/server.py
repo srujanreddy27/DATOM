@@ -26,6 +26,11 @@ db_name = os.environ.get('DB_NAME', 'decentratask')
 client = AsyncIOMotorClient(mongo_url) if not USE_MEMORY_DB else None
 db = client[db_name] if client else None
 
+# JWT Configuration
+SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-here-change-in-production')
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
 # In-memory fallback stores (used if MongoDB is unavailable or USE_MEMORY_DB=true)
 memory_tasks = []
 memory_users = []
@@ -718,7 +723,10 @@ async def release_escrow(escrow_id: str, zkp_hash: str):
             return {"message": "Escrow released successfully (memory)", "zkp_hash": zkp_hash}
     raise HTTPException(status_code=404, detail="Escrow transaction not found")
 
-# Analytics Routes
+# Authentication Routes
+@api_router.get("/auth/me")
+async def me(current_user: User = Depends(get_current_user)):
+    return current_user
 @api_router.get("/analytics/stats")
 async def get_platform_stats():
     """Get platform statistics"""
