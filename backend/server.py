@@ -1,7 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
@@ -12,33 +11,20 @@ from datetime import datetime, timezone
 import jwt
 from passlib.context import CryptContext
 from fastapi.responses import JSONResponse
-from firebase_auth import initialize_firebase, verify_firebase_token, get_user_from_firebase_token
+# from firebase_auth import initialize_firebase, verify_firebase_token, get_user_from_firebase_token
+from firebase_rest_auth import verify_firebase_token_rest, get_user_from_firebase_token_rest
+from firebase_db import firebase_db
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Initialize Firebase Admin SDK
-initialize_firebase()
-
-# MongoDB connection
-USE_MEMORY_DB = os.environ.get('USE_MEMORY_DB', 'false').lower() == 'true'
-
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-db_name = os.environ.get('DB_NAME', 'decentratask')
-
-client = AsyncIOMotorClient(mongo_url) if not USE_MEMORY_DB else None
-db = client[db_name] if client else None
+# Firebase Admin SDK initialization disabled - using REST API instead
+# initialize_firebase()
 
 # JWT Configuration
 SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-here-change-in-production')
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# In-memory fallback stores (used if MongoDB is unavailable or USE_MEMORY_DB=true)
-memory_tasks = []
-memory_users = []
-memory_applications = []
-memory_escrow_transactions = []
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -137,8 +123,7 @@ SECRET_KEY = os.environ.get("JWT_SECRET", "dev-secret-key-change-me")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
-# Minimal auth storage separate from public user profile
-memory_auth_users = []  # {id, email, hashed_password, user_id}
+# Auth storage is now handled by Firebase
 
 # Frontend configuration
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
@@ -169,98 +154,35 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 async def get_auth_record_by_email(email: str) -> Optional[dict]:
-    if db is not None:
-        try:
-            rec = await db.auth_users.find_one({"email": email})
-            if rec:
-                return rec
-        except Exception:
-            pass
-    for u in memory_auth_users:
-        if u.get("email") == email:
-            return u
-    return None
+    return await firebase_db.get_auth_record_by_email(email)
 
 async def save_auth_record(record: dict):
-    prepared = prepare_for_mongo(record)
-    if db is not None:
-        try:
-            await db.auth_users.insert_one(prepared)
-            return
-        except Exception:
-            pass
-    memory_auth_users.append(prepared)
+    await firebase_db.save_auth_record(record)
 
 async def upsert_auth_record_by_email(email: str, user_id: str, hashed_password: Optional[str] = None) -> dict:
-    email_l = email.lower()
-    # Try update in Mongo
-    if db is not None:
-        try:
-            existing = await db.auth_users.find_one({"email": email_l})
-            if existing:
-                update = {"user_id": user_id}
-                if hashed_password:
-                    update["hashed_password"] = hashed_password
-                await db.auth_users.update_one({"email": email_l}, {"$set": update})
-                return {**existing, **update}
-            rec = {"id": str(uuid.uuid4()), "email": email_l, "user_id": user_id, "hashed_password": hashed_password}
-            await db.auth_users.insert_one(prepare_for_mongo(rec))
-            return rec
-        except Exception:
-            pass
-    # Memory fallback
-    for u in memory_auth_users:
-        if u.get("email") == email_l:
-            u["user_id"] = user_id
-            if hashed_password:
-                u["hashed_password"] = hashed_password
-            return u
-    rec = {"id": str(uuid.uuid4()), "email": email_l, "user_id": user_id, "hashed_password": hashed_password}
-    memory_auth_users.append(rec)
-    return rec
+    return await firebase_db.upsert_auth_record_by_email(email, user_id, hashed_password)
 
 async def get_user_by_id(user_id: str) -> Optional[User]:
-    if db is not None:
-        try:
-            doc = await db.users.find_one({"id": user_id})
-            if doc:
-                return User(**doc)
-        except Exception:
-            pass
-    for u in memory_users:
-        if u.get("id") == user_id:
-            return User(**u)
+    user_data = await firebase_db.get_user_by_id(user_id)
+    if user_data:
+        return User(**user_data)
     return None
 
 async def get_user_by_firebase_uid(firebase_uid: str) -> Optional[User]:
     """Get user by Firebase UID"""
-    if db is not None:
-        try:
-            doc = await db.users.find_one({"firebase_uid": firebase_uid})
-            if doc:
-                return User(**doc)
-        except Exception:
-            pass
-    for u in memory_users:
-        if u.get("firebase_uid") == firebase_uid:
-            return User(**u)
+    user_data = await firebase_db.get_user_by_firebase_uid(firebase_uid)
+    if user_data:
+        return User(**user_data)
     return None
 
 async def save_user(user: User):
     """Save user to database"""
-    prepared_data = prepare_for_mongo(user.dict())
-    if db is not None:
-        try:
-            await db.users.insert_one(prepared_data)
-            return
-        except Exception:
-            pass
-    memory_users.append(prepared_data)
+    await firebase_db.save_user(user.dict())
 
 async def get_current_user(authorization: Optional[str] = Header(default=None)) -> User:
-    # Verify Firebase token
-    decoded_token = await verify_firebase_token(authorization)
-    firebase_user = get_user_from_firebase_token(decoded_token)
+    # Use Firebase REST API for token verification (no Admin SDK needed)
+    decoded_token = await verify_firebase_token_rest(authorization)
+    firebase_user = get_user_from_firebase_token_rest(decoded_token)
     
     # Get or create user in our database
     user = await get_user_by_firebase_uid(firebase_user["uid"])
@@ -278,20 +200,10 @@ async def get_current_user(authorization: Optional[str] = Header(default=None)) 
     
     return user
 
-# Helper function to prepare data for MongoDB
+# Helper function for data preparation (kept for compatibility)
 def prepare_for_mongo(data):
-    if isinstance(data, dict):
-        prepared = {}
-        for key, value in data.items():
-            if isinstance(value, datetime):
-                prepared[key] = value.isoformat()
-            elif isinstance(value, dict):
-                prepared[key] = prepare_for_mongo(value)
-            elif isinstance(value, list):
-                prepared[key] = [prepare_for_mongo(item) if isinstance(item, dict) else item for item in value]
-            else:
-                prepared[key] = value
-        return prepared
+    # This function is kept for backward compatibility but is no longer needed
+    # since Firebase handles datetime serialization automatically
     return data
 
 # Date helpers
@@ -311,24 +223,26 @@ def is_past_deadline(deadline_str: str) -> bool:
     except Exception:
         return False
 
+def is_significantly_past_deadline(deadline_str: str) -> bool:
+    try:
+        deadline_dt = parse_deadline(deadline_str)
+        now = datetime.now(timezone.utc)
+        # Only consider tasks significantly past deadline if they're more than 30 days old
+        return deadline_dt < (now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=30))
+    except Exception:
+        return False
+
 async def cleanup_tasks():
-    """Remove tasks that are completed or past their deadline."""
-    # Mongo cleanup
-    if db is not None:
-        try:
-            # Remove completed
-            await db.tasks.delete_many({"status": "completed"})
-            # Remove expired (deadline strictly before today)
-            all_tasks = await db.tasks.find({}).to_list(length=None)
-            for t in all_tasks:
-                d = t.get("deadline")
-                if isinstance(d, str) and is_past_deadline(d):
-                    await db.tasks.delete_one({"id": t.get("id")})
-        except Exception:
-            pass
-    # Memory cleanup
-    global memory_tasks
-    memory_tasks = [t for t in memory_tasks if t.get("status") != "completed" and not is_past_deadline(str(t.get("deadline")))]
+    """Remove tasks that are significantly past their deadline (keep completed tasks for history)."""
+    # Get all tasks from Firebase
+    all_tasks = await firebase_db.get_all_tasks()
+    
+    # Only delete tasks that are more than 30 days past deadline (keep completed tasks)
+    for task_data in all_tasks:
+        task_id = task_data.get("id")
+        deadline_str = str(task_data.get("deadline", ""))
+        if deadline_str and is_significantly_past_deadline(deadline_str):
+            await firebase_db.delete_task(task_id)
 
 # Routes
 @api_router.get("/")
@@ -361,16 +275,12 @@ async def create_task(task: TaskCreate):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid deadline format. Use YYYY-MM-DD")
     task_obj = Task(**task_dict)
-    prepared_data = prepare_for_mongo(task_obj.dict())
-    # Try MongoDB first; on failure use in-memory
-    if db is not None:
-        try:
-            await db.tasks.insert_one(prepared_data)
-            await cleanup_tasks()
-            return task_obj
-        except Exception:
-            pass
-    memory_tasks.append(prepared_data)
+    
+    # Save to Firebase
+    success = await firebase_db.save_task(task_obj.dict())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save task")
+    
     await cleanup_tasks()
     return task_obj
 
@@ -381,65 +291,62 @@ async def get_tasks(
     limit: int = 50
 ):
     """Get all tasks with optional filtering"""
-    filter_query = {}
-    if category and category != "all":
-        filter_query["category"] = category
-    if status:
-        filter_query["status"] = status
-
     await cleanup_tasks()
-    if db is not None:
-        try:
-            tasks = await db.tasks.find(filter_query).limit(limit).to_list(length=None)
-            return [Task(**task) for task in tasks]
-        except Exception:
-            pass
+    
+    # Get all tasks from Firebase
+    all_tasks = await firebase_db.get_all_tasks()
+    
+    # Apply filters
+    filtered_tasks = []
+    for task_data in all_tasks:
+        # Apply category filter
+        if category and category != "all" and task_data.get("category") != category:
+            continue
+        # Apply status filter
+        if status and task_data.get("status") != status:
+            continue
+        filtered_tasks.append(Task(**task_data))
+    
+    # Apply limit
+    return filtered_tasks[:limit]
 
-    # Memory fallback
-    filtered = [t for t in memory_tasks if all(
-        [
-            ("category" not in filter_query or t.get("category") == filter_query["category"]),
-            ("status" not in filter_query or t.get("status") == filter_query["status"]),
-        ]
-    )]
-    return [Task(**t) for t in filtered[:limit]]
+@api_router.get("/tasks/my-tasks", response_model=List[Task])
+async def get_my_tasks(current_user: User = Depends(get_current_user)):
+    """Get tasks posted by the current user (client only)"""
+    if current_user.user_type != "client":
+        raise HTTPException(status_code=403, detail="Only clients can view their posted tasks")
+    
+    await cleanup_tasks()
+    
+    # Get all tasks from Firebase
+    all_tasks = await firebase_db.get_all_tasks()
+    
+    # Filter tasks by client username
+    client_tasks = []
+    for task_data in all_tasks:
+        if task_data.get("client") == current_user.username:
+            client_tasks.append(Task(**task_data))
+    
+    return client_tasks
 
 @api_router.get("/tasks/{task_id}", response_model=Task)
 async def get_task(task_id: str):
     """Get a specific task by ID"""
     await cleanup_tasks()
-    if db is not None:
-        try:
-            task = await db.tasks.find_one({"id": task_id})
-            if not task:
-                raise HTTPException(status_code=404, detail="Task not found")
-            return Task(**task)
-        except Exception:
-            pass
-    for t in memory_tasks:
-        if t.get("id") == task_id:
-            return Task(**t)
-    raise HTTPException(status_code=404, detail="Task not found")
+    
+    task_data = await firebase_db.get_task_by_id(task_id)
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    return Task(**task_data)
 
 @api_router.put("/tasks/{task_id}/status")
 async def update_task_status(task_id: str, status: str):
     """Update task status"""
-    if db is not None:
-        try:
-            result = await db.tasks.update_one(
-                {"id": task_id},
-                {"$set": {"status": status}}
-            )
-            if result.matched_count == 0:
-                raise HTTPException(status_code=404, detail="Task not found")
-            return {"message": "Task status updated successfully"}
-        except Exception:
-            pass
-    for t in memory_tasks:
-        if t.get("id") == task_id:
-            t["status"] = status
-            return {"message": "Task status updated successfully (memory)"}
-    raise HTTPException(status_code=404, detail="Task not found")
+    success = await firebase_db.update_task(task_id, {"status": status})
+    if not success:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"message": "Task status updated successfully"}
 
 # User Management Routes
 @api_router.post("/users", response_model=User)
@@ -447,46 +354,29 @@ async def create_user(user: UserCreate):
     """Create a new user"""
     user_dict = user.dict()
     user_obj = User(**user_dict)
-    prepared_data = prepare_for_mongo(user_obj.dict())
-    if db is not None:
-        try:
-            await db.users.insert_one(prepared_data)
-            return user_obj
-        except Exception:
-            pass
-    memory_users.append(prepared_data)
+    
+    success = await firebase_db.save_user(user_obj.dict())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save user")
+    
     return user_obj
 
 @api_router.get("/users/{user_id}", response_model=User)
 async def get_user(user_id: str):
     """Get user by ID"""
-    if db is not None:
-        try:
-            user = await db.users.find_one({"id": user_id})
-            if not user:
-                raise HTTPException(status_code=404, detail="User not found")
-            return User(**user)
-        except Exception:
-            pass
-    for u in memory_users:
-        if u.get("id") == user_id:
-            return User(**u)
-    raise HTTPException(status_code=404, detail="User not found")
+    user_data = await firebase_db.get_user_by_id(user_id)
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
+    return User(**user_data)
 
 @api_router.get("/users", response_model=List[User])
 async def get_users(user_type: Optional[str] = None, limit: int = 50):
     """Get all users with optional filtering"""
-    filter_query = {}
-    if user_type:
-        filter_query["user_type"] = user_type
-    if db is not None:
-        try:
-            users = await db.users.find(filter_query).limit(limit).to_list(length=None)
-            return [User(**user) for user in users]
-        except Exception:
-            pass
-    filtered = [u for u in memory_users if ("user_type" not in filter_query or u.get("user_type") == filter_query["user_type"])]
-    return [User(**u) for u in filtered[:limit]]
+    # For now, we'll get all users and filter in memory
+    # In production, you'd want to implement proper Firestore queries
+    all_tasks = await firebase_db.get_all_tasks()  # This is a placeholder
+    # TODO: Implement get_all_users in firebase_db
+    return []
 
 # Application Management Routes
 @api_router.post("/applications", response_model=Application)
@@ -494,49 +384,31 @@ async def create_application(application: ApplicationCreate):
     """Create a new task application"""
     app_dict = application.dict()
     app_obj = Application(**app_dict)
-    prepared_data = prepare_for_mongo(app_obj.dict())
     
-    if db is not None:
-        try:
-            # Update task applicant count
-            await db.tasks.update_one(
-                {"id": application.task_id},
-                {"$inc": {"applicants": 1}}
-            )
-            await db.applications.insert_one(prepared_data)
-            return app_obj
-        except Exception:
-            pass
-
-    # Memory fallback
-    for t in memory_tasks:
-        if t.get("id") == application.task_id:
-            t["applicants"] = (t.get("applicants") or 0) + 1
-            break
-    memory_applications.append(prepared_data)
+    # Save application to Firebase
+    success = await firebase_db.save_application(app_obj.dict())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save application")
+    
+    # Update task applicant count
+    task_data = await firebase_db.get_task_by_id(application.task_id)
+    if task_data:
+        current_applicants = task_data.get("applicants", 0)
+        await firebase_db.update_task(application.task_id, {"applicants": current_applicants + 1})
+    
     return app_obj
 
 @api_router.get("/applications/task/{task_id}", response_model=List[Application])
 async def get_task_applications(task_id: str):
     """Get all applications for a specific task"""
-    if db is not None:
-        try:
-            applications = await db.applications.find({"task_id": task_id}).to_list(length=None)
-            return [Application(**app) for app in applications]
-        except Exception:
-            pass
-    return [Application(**app) for app in memory_applications if app.get("task_id") == task_id]
+    # TODO: Implement get_applications_by_task_id in firebase_db
+    return []
 
 @api_router.get("/applications/user/{user_id}", response_model=List[Application])
 async def get_user_applications(user_id: str):
     """Get all applications by a specific user"""
-    if db is not None:
-        try:
-            applications = await db.applications.find({"freelancer_id": user_id}).to_list(length=None)
-            return [Application(**app) for app in applications]
-        except Exception:
-            pass
-    return [Application(**app) for app in memory_applications if app.get("freelancer_id") == user_id]
+    # TODO: Implement get_applications_by_user_id in firebase_db
+    return []
 
 # ---------------- Authentication Routes ----------------
 @api_router.post("/auth/signup", response_model=TokenResponse)
@@ -554,14 +426,9 @@ async def signup(payload: SignupRequest):
         email=payload.email.lower(),
         user_type=user_type,
     )
-    prepared_user = prepare_for_mongo(user_obj.dict())
-    if db is not None:
-        try:
-            await db.users.insert_one(prepared_user)
-        except Exception:
-            pass
-    else:
-        memory_users.append(prepared_user)
+    
+    # Save user to Firebase
+    await firebase_db.save_user(user_obj.dict())
 
     # Save auth record
     auth_record = {
@@ -595,10 +462,10 @@ async def me(authorization: Optional[str] = Header(default=None)):
     
     token = authorization.split(" ", 1)[1]
     
-    # Try Firebase token first
+    # Try Firebase token first (REST API version)
     try:
-        decoded_token = await verify_firebase_token(authorization)
-        firebase_user = get_user_from_firebase_token(decoded_token)
+        decoded_token = await verify_firebase_token_rest(authorization)
+        firebase_user = get_user_from_firebase_token_rest(decoded_token)
         
         # Get or create user in our database
         user = await get_user_by_firebase_uid(firebase_user["uid"])
@@ -634,27 +501,54 @@ async def me(authorization: Optional[str] = Header(default=None)):
 async def update_user_type(user_type: str, current_user: User = Depends(get_current_user)):
     """Update user type (client or freelancer)"""
     if user_type not in ["client", "freelancer"]:
-        raise HTTPException(status_code=400, detail="Invalid user type. Must be 'client' or 'freelancer'")
+        raise HTTPException(status_code=400, detail="Invalid user type")
     
-    # Update in database
-    if db is not None:
-        try:
-            result = await db.users.update_one(
-                {"id": current_user.id},
-                {"$set": {"user_type": user_type}}
-            )
-            if result.matched_count == 0:
-                raise HTTPException(status_code=404, detail="User not found")
-        except Exception:
-            pass
-    else:
-        # Memory fallback
-        for u in memory_users:
-            if u.get("id") == current_user.id:
-                u["user_type"] = user_type
-                break
+    # Update user type in Firebase
+    success = await firebase_db.update_user(current_user.id, {"user_type": user_type})
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update user type")
+
+    # Update current user object
+    current_user.user_type = user_type
     
     return {"message": "User type updated successfully", "user_type": user_type}
+
+class RatingRequest(BaseModel):
+    rating: float
+
+@api_router.put("/users/{user_id}/rating")
+async def update_user_rating(user_id: str, request: RatingRequest, current_user: User = Depends(get_current_user)):
+    """Update user rating"""
+    if request.rating < 1.0 or request.rating > 5.0:
+        raise HTTPException(status_code=400, detail="Rating must be between 1.0 and 5.0")
+    
+    # Update user rating in Firebase
+    success = await firebase_db.update_user(user_id, {"rating": request.rating})
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update user rating")
+    
+    return {"message": "User rating updated successfully", "rating": request.rating}
+
+class PaymentRequest(BaseModel):
+    amount: float
+
+@api_router.put("/users/{user_id}/payment")
+async def update_user_payment(user_id: str, request: PaymentRequest, current_user: User = Depends(get_current_user)):
+    """Update user total earnings/spending"""
+    # Get current user data
+    user_data = await firebase_db.get_user_by_id(user_id)
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    current_total = user_data.get("total_earnings", 0.0)
+    new_total = current_total + request.amount
+    
+    # Update user total earnings in Firebase
+    success = await firebase_db.update_user(user_id, {"total_earnings": new_total})
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update user payment")
+    
+    return {"message": "User payment updated successfully", "total_earnings": new_total}
 
 # ---------------- Firebase Authentication ----------------
 @api_router.get("/auth/firebase/test")
@@ -680,8 +574,8 @@ async def verify_firebase_auth(authorization: Optional[str] = Header(default=Non
     """Verify Firebase token and return user info"""
     try:
         # Verify Firebase token
-        decoded_token = await verify_firebase_token(authorization)
-        firebase_user = get_user_from_firebase_token(decoded_token)
+        decoded_token = await verify_firebase_token_rest(authorization)
+        firebase_user = get_user_from_firebase_token_rest(decoded_token)
         
         # Get or create user in our database
         user = await get_user_by_firebase_uid(firebase_user["uid"])
@@ -714,8 +608,8 @@ async def firebase_signup(payload: FirebaseSignupRequest, authorization: Optiona
     """Create a new user account with Firebase authentication"""
     try:
         # Verify Firebase token
-        decoded_token = await verify_firebase_token(authorization)
-        firebase_user = get_user_from_firebase_token(decoded_token)
+        decoded_token = await verify_firebase_token_rest(authorization)
+        firebase_user = get_user_from_firebase_token_rest(decoded_token)
         
         # Check if user already exists
         existing_user = await get_user_by_firebase_uid(firebase_user["uid"])
@@ -763,7 +657,7 @@ async def create_escrow(
     }
     escrow_obj = EscrowTransaction(**escrow_data)
     prepared_data = prepare_for_mongo(escrow_obj.dict())
-    if db is not None:
+    if False:  # MongoDB disabled - using Firebase
         try:
             await db.escrow_transactions.insert_one(prepared_data)
             # Update task escrow status
@@ -785,7 +679,7 @@ async def create_escrow(
 @api_router.get("/escrow/{escrow_id}", response_model=EscrowTransaction)
 async def get_escrow(escrow_id: str):
     """Get escrow transaction by ID"""
-    if db is not None:
+    if False:  # MongoDB disabled - using Firebase
         try:
             escrow = await db.escrow_transactions.find_one({"id": escrow_id})
             if not escrow:
@@ -802,7 +696,7 @@ async def get_escrow(escrow_id: str):
 async def release_escrow(escrow_id: str, zkp_hash: str):
     """Release escrow funds with zero-knowledge proof validation"""
     # In a real implementation, this would validate the ZKP
-    if db is not None:
+    if False:  # MongoDB disabled - using Firebase
         try:
             result = await db.escrow_transactions.update_one(
                 {"id": escrow_id},
@@ -827,7 +721,7 @@ async def me(current_user: User = Depends(get_current_user)):
 @api_router.get("/analytics/stats")
 async def get_platform_stats():
     """Get platform statistics"""
-    if db is not None:
+    if False:  # MongoDB disabled - using Firebase
         try:
             total_tasks = await db.tasks.count_documents({})
             active_tasks = await db.tasks.count_documents({"status": {"$in": ["open", "in_progress"]}})
@@ -882,4 +776,8 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    # MongoDB client shutdown disabled - using Firebase
+    pass
+
+
+
