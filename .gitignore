@@ -87,3 +87,5 @@ android-sdk/ -e
 # Environment files
 *.env
 *.env.*
+# Firebase
+backend/firebase-service-account-key.json

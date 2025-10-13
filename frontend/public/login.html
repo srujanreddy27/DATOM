@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,8 +10,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-top: #14b8a6; /* accent teal to match app */
-      --bg-bottom: #06b6d4; /* accent cyan to match app */
+      --bg-top: #14b8a6;
+      /* accent teal to match app */
+      --bg-bottom: #06b6d4;
+      /* accent cyan to match app */
     }
 
     * {
@@ -41,8 +44,6 @@
       gap: 30px;
       position: relative;
     }
-
-    /* (close button removed) */
 
     /* Floating Blockchain Animation */
     .floating-blockchain {
@@ -110,6 +111,8 @@
         opacity: 0;
       }
     }
+
+    /* -------- Faces Container -------- */
     .faces-container {
       display: flex;
       align-items: flex-end;
@@ -127,14 +130,32 @@
       animation: float 5s ease-in-out infinite;
     }
 
-    .faces-container .face:nth-child(1) { animation-delay: 0s; }
-    .faces-container .face:nth-child(2) { animation-delay: .8s; }
-    .faces-container .face:nth-child(3) { animation-delay: 1.6s; }
-    .faces-container .face:nth-child(4) { animation-delay: 2.4s; }
+    .faces-container .face:nth-child(1) {
+      animation-delay: 0s;
+    }
+
+    .faces-container .face:nth-child(2) {
+      animation-delay: .8s;
+    }
+
+    .faces-container .face:nth-child(3) {
+      animation-delay: 1.6s;
+    }
+
+    .faces-container .face:nth-child(4) {
+      animation-delay: 2.4s;
+    }
 
     @keyframes float {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-6px); }
+
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-6px);
+      }
     }
 
     /* Shapes */
@@ -192,13 +213,15 @@
       left: 2px;
       width: 5px;
       height: 5px;
-      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(255,255,255,.2));
+      background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, .95), rgba(255, 255, 255, .2));
       border-radius: 50%;
       pointer-events: none;
     }
 
     /* subtle glow makes eyes cuter */
-    .eye { box-shadow: 0 0 8px rgba(255,255,255,.6) inset; }
+    .eye {
+      box-shadow: 0 0 8px rgba(255, 255, 255, .6) inset;
+    }
 
     .pupil {
       width: 6px;
@@ -246,12 +269,14 @@
       height: 4px;
       border-radius: 0;
     }
+
     .mouth.smile {
       height: 15px;
       border-radius: 0 0 40px 40px;
       background: none;
       border-bottom: 4px solid #000;
     }
+
     .mouth.sad {
       height: 15px;
       border-radius: 40px 40px 0 0;
@@ -271,29 +296,12 @@
       opacity: 0;
       transform: translateX(-50%) translateY(-6px);
       transition: opacity .25s ease, transform .35s ease;
-      filter: drop-shadow(0 1px 1px rgba(0,0,0,.2));
-    }
-    .tear.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-    /* Pulse Animation */
-    .pulse-animation {
-      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .2));
     }
 
-    @keyframes pulse {
-      0%, 100% {
-        opacity: 1;
-      }
-      50% {
-        opacity: 0.7;
-        transform: scale(1.1);
-      }
-    }
-
-    /* Enhanced Hover Effects */
-    button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+    .tear.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
     }
 
     /* Login card */
@@ -329,11 +337,157 @@
       transform: translateY(-2px);
     }
 
-    /* Glass Morphism Effect */
-    .glass {
-      background: rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+    h2 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 30px;
+      font-size: 28px;
+    }
+
+    .input-group {
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    input {
+      width: 100%;
+      padding: 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 16px;
+      transition: border-color .3s ease;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--bg-top);
+    }
+
+    .password-wrapper {
+      position: relative;
+    }
+
+    .toggle-password {
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      font-size: 20px;
+      color: #666;
+      transition: color .3s ease;
+    }
+
+    .toggle-password:hover {
+      color: var(--bg-top);
+    }
+
+    button {
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .2s ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .error-message {
+      color: #e74c3c;
+      text-align: center;
+      margin-top: 15px;
+      opacity: 0;
+      transition: opacity .3s ease;
+    }
+
+    .error-message.show {
+      opacity: 1;
+    }
+
+    /* Auth extras */
+    .actions-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    .muted-link {
+      color: #4a6ee0;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .muted-link:hover {
+      text-decoration: underline;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 15px 0;
+      color: #888;
+      font-size: 12px;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: "";
+      height: 1px;
+      background: #e0e0e0;
+      flex: 1;
+    }
+
+    .social-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 12px;
+      background: #ffffff;
+      border: 2px solid #e0e0e0;
+      color: #333;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .social-btn:hover {
+      border-color: #c8c8c8;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    /* Pulse Animation */
+    .pulse-animation {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+      }
     }
 
     /* Enhanced Focus States */
@@ -365,124 +519,6 @@
     ::selection {
       background: rgba(20, 184, 166, 0.3);
       color: #f8fafc;
-    }
-
-    h2 {
-      text-align: center;
-      color: #333;
-      margin-bottom: 30px;
-      font-size: 28px;
-    }
-
-    .input-group {
-      margin-bottom: 20px;
-      position: relative;
-    }
-
-    input {
-      width: 100%;
-      padding: 15px;
-      border: 2px solid #e0e0e0;
-      border-radius: 10px;
-      font-size: 16px;
-      transition: border-color .3s ease;
-    }
-
-    input:focus {
-      outline: none;
-      border-color: var(--bg-top);
-    }
-
-    .password-wrapper { position: relative; }
-
-    .toggle-password {
-      position: absolute;
-      right: 15px;
-      top: 50%;
-      transform: translateY(-50%);
-      cursor: pointer;
-      font-size: 20px;
-      color: #666;
-      transition: color .3s ease;
-    }
-
-    .toggle-password:hover { color: var(--bg-top); }
-
-    button {
-      width: 100%;
-      padding: 15px;
-      background: linear-gradient(135deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      font-size: 18px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: transform .2s ease;
-    }
-
-    button:hover { transform: translateY(-2px); }
-    button:active { transform: translateY(0); }
-
-    .error-message {
-      color: #e74c3c;
-      text-align: center;
-      margin-top: 15px;
-      opacity: 0;
-      transition: opacity .3s ease;
-    }
-
-    .error-message.show { opacity: 1; }
-
-    /* Auth extras */
-    .actions-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 10px;
-      font-size: 14px;
-    }
-    .muted-link {
-      color: #4a6ee0;
-      text-decoration: none;
-      cursor: pointer;
-    }
-    .muted-link:hover { text-decoration: underline; }
-
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 15px 0;
-      color: #888;
-      font-size: 12px;
-    }
-    .divider::before, .divider::after {
-      content: "";
-      height: 1px;
-      background: #e0e0e0;
-      flex: 1;
-    }
-
-    .social-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      width: 100%;
-      padding: 12px;
-      background: #ffffff;
-      border: 2px solid #e0e0e0;
-      color: #333;
-      border-radius: 10px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .social-btn:hover { border-color: #c8c8c8; }
-
-    /* Hidden form class */
-    .hidden {
-      display: none !important;
     }
 
     /* Celebration Modal */
@@ -617,27 +653,8 @@
     }
   </style>
 </head>
-<body>
-  <!-- OTP Modal -->
-  <div class="celebration-modal" id="otpModal">
-    <div class="celebration-content">
-      <div class="celebration-icon">📧</div>
-      <div class="celebration-title" id="otpTitle">Enter OTP</div>
-      <div class="celebration-message" id="otpMessage">We've sent a 6-digit code to your email</div>
-      <div style="margin: 20px 0;">
-        <input type="text" id="otpInput" placeholder="Enter 6-digit OTP" maxlength="6" 
-               style="width: 200px; padding: 12px; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; background: rgba(255,255,255,0.1); color: white; text-align: center; font-size: 18px; letter-spacing: 3px;">
-      </div>
-      <div style="display: flex; gap: 10px; justify-content: center;">
-        <button class="celebration-btn" onclick="verifyOTP()">Verify OTP</button>
-        <button class="celebration-btn" onclick="closeOTPModal()" style="background: rgba(255,255,255,0.1);">Cancel</button>
-      </div>
-      <div style="margin-top: 15px;">
-        <button id="resendOTP" onclick="resendOTP()" style="background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; text-decoration: underline;">Resend OTP</button>
-      </div>
-    </div>
-  </div>
 
+<body>
   <!-- Celebration Modal -->
   <div class="celebration-modal" id="celebrationModal">
     <div class="celebration-content">
@@ -676,32 +693,56 @@
     <div class="faces-container">
       <div class="face orange pulse-animation">
         <div class="eyes" style="top:20px;">
-          <div class="eye"><div class="eyelid"></div><div class="pupil"></div></div>
-          <div class="eye"><div class="eyelid"></div><div class="pupil"></div></div>
+          <div class="eye">
+            <div class="eyelid"></div>
+            <div class="pupil"></div>
+          </div>
+          <div class="eye">
+            <div class="eyelid"></div>
+            <div class="pupil"></div>
+          </div>
         </div>
         <div class="tear"></div>
         <div class="mouth flat"></div>
       </div>
       <div class="face purple">
         <div class="eyes" style="top:20px;">
-          <div class="eye"><div class="eyelid"></div><div class="pupil"></div></div>
-          <div class="eye"><div class="eyelid"></div><div class="pupil"></div></div>
+          <div class="eye">
+            <div class="eyelid"></div>
+            <div class="pupil"></div>
+          </div>
+          <div class="eye">
+            <div class="eyelid"></div>
+            <div class="pupil"></div>
+          </div>
         </div>
         <div class="tear"></div>
         <div class="mouth flat"></div>
       </div>
       <div class="face green">
         <div class="eyes" style="top:20px;">
-          <div class="eye"><div class="eyelid"></div><div class="pupil"></div></div>
-          <div class="eye"><div class="eyelid"></div><div class="pupil"></div></div>
+          <div class="eye">
+            <div class="eyelid"></div>
+            <div class="pupil"></div>
+          </div>
+          <div class="eye">
+            <div class="eyelid"></div>
+            <div class="pupil"></div>
+          </div>
         </div>
         <div class="tear"></div>
         <div class="mouth flat"></div>
       </div>
       <div class="face yellow">
         <div class="eyes" style="top:25px;">
-          <div class="eye"><div class="eyelid"></div><div class="pupil"></div></div>
-          <div class="eye"><div class="eyelid"></div><div class="pupil"></div></div>
+          <div class="eye">
+            <div class="eyelid"></div>
+            <div class="pupil"></div>
+          </div>
+          <div class="eye">
+            <div class="eyelid"></div>
+            <div class="pupil"></div>
+          </div>
         </div>
         <div class="tear"></div>
         <div class="mouth flat"></div>
@@ -734,6 +775,9 @@
       <!-- Signup Form -->
       <form id="signupForm" class="hidden">
         <div class="input-group">
+          <input type="text" id="signupUsername" placeholder="Username" required>
+        </div>
+        <div class="input-group">
           <input type="email" id="signupEmail" placeholder="Email" required>
         </div>
         <div class="input-group">
@@ -741,6 +785,14 @@
             <input type="password" id="signupPassword" placeholder="Password" required>
             <span class="toggle-password" id="togglePasswordSignup">👁️</span>
           </div>
+        </div>
+        <div class="input-group">
+          <select id="userType" required
+            style="width: 100%; padding: 15px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 16px; background: white;">
+            <option value="">Select Account Type</option>
+            <option value="client">Client (Post Tasks)</option>
+            <option value="freelancer">Freelancer (Find Tasks)</option>
+          </select>
         </div>
         <div class="actions-row">
           <span></span>
@@ -754,7 +806,13 @@
     </div>
   </div>
 
-  <!-- Firebase SDKs (Mock version for demo) -->
+  <!-- Clear auth state first -->
+  <script src="clear-auth.js"></script>
+
+  <!-- Configuration -->
+  <script src="config.js"></script>
+
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore-compat.js"></script>
@@ -768,74 +826,33 @@
       }
     })();
 
-    window.FIREBASE_CONFIG = {
-      apiKey: "AIzaSyAHbgvx-U51cUdLKuT0pcp0Mt82ooWjAlI",
-      authDomain: "datom-2b7ff.firebaseapp.com",
-      projectId: "datom-2b7ff",
-      storageBucket: "datom-2b7ff.firebasestorage.app",
-      messagingSenderId: "1069100540873",
-      appId: "1:1069100540873:web:a56adda20c39192561be18",
-      measurementId: "G-QZXH09KTFC"
-      };
-
-    // Use the real Firebase config
-    const firebaseConfig = window.FIREBASE_CONFIG;
-    
-    let auth, db;
-    try { 
-      firebase.initializeApp(firebaseConfig); 
-      auth = firebase.auth();
-      db = firebase.firestore();
-    } catch (e) {
-      console.error('Firebase initialization failed:', e);
-      // Firebase failed to initialize, we'll use a mock approach
-      auth = null;
-      db = null;
-    }
-
-    // Auth persistence with fallbacks when web storage is blocked/unavailable
-    (async function setPersistenceWithFallback() {
+    // Firebase config loading with safe fallbacks
+    // Priority: APP_CONFIG -> localStorage('firebaseConfig') -> prompt user
+    function loadFirebaseConfig() {
+      // 1) From APP_CONFIG if provided
+      if (window && window.APP_CONFIG && window.APP_CONFIG.FIREBASE_CONFIG && window.APP_CONFIG.FIREBASE_CONFIG.apiKey) {
+        return window.APP_CONFIG.FIREBASE_CONFIG;
+      }
+      // 2) From localStorage
       try {
-        await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-      } catch (e1) {
-        try {
-          await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
-        } catch (e2) {
-          try {
-            await auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
-          } catch (e3) {
-            // ignore; environment may not support persistence at all
+        const saved = localStorage.getItem('firebaseConfig');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.apiKey) return parsed;
+        }
+      } catch (e) { }
+      // 3) Prompt user to paste their config
+      try {
+        const maybe = prompt('Firebase config not found. Paste your Firebase config JSON (from Console > Project settings):');
+        if (maybe) {
+          const parsed = JSON.parse(maybe);
+          if (parsed && parsed.apiKey) {
+            localStorage.setItem('firebaseConfig', JSON.stringify(parsed));
+            return parsed;
           }
         }
-      }
-    })();
-
-    // Creative username generation
-    function generateCreativeUsername(email, displayName = null) {
-      if (displayName && displayName.trim()) {
-        return displayName.trim();
-      }
-      
-      const emailPart = email.split('@')[0];
-      const adjectives = ['Awesome', 'Creative', 'Smart', 'Brilliant', 'Amazing', 'Fantastic', 'Incredible', 'Wonderful', 'Talented', 'Innovative'];
-      const animals = ['Panda', 'Tiger', 'Eagle', 'Dolphin', 'Lion', 'Phoenix', 'Dragon', 'Wolf', 'Falcon', 'Shark'];
-      const colors = ['Blue', 'Golden', 'Silver', 'Crimson', 'Emerald', 'Sapphire', 'Ruby', 'Diamond', 'Platinum', 'Crystal'];
-      
-      // Try to extract meaningful parts from email
-      const cleanEmail = emailPart.replace(/[0-9]/g, '').replace(/[._-]/g, '');
-      
-      if (cleanEmail.length >= 3) {
-        // Use part of email with creative suffix
-        const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
-        const capitalizedEmail = cleanEmail.charAt(0).toUpperCase() + cleanEmail.slice(1, 6);
-        return `${randomAdj} ${capitalizedEmail}`;
-      } else {
-        // Generate completely creative name
-        const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
-        const randomColor = colors[Math.floor(Math.random() * colors.length)];
-        const randomAnimal = animals[Math.floor(Math.random() * animals.length)];
-        return `${randomAdj} ${randomColor} ${randomAnimal}`;
-      }
+      } catch (e) { }
+      throw new Error('Firebase configuration not found. Please check your config.js file or provide configuration.');
     }
 
     // Celebration Modal Functions
@@ -873,7 +890,7 @@
         // Ignore audio errors - not critical
       }
 
-      // Auto close after 4 seconds and redirect (increased time for better UX)
+      // Auto close after 4 seconds and redirect
       setTimeout(() => {
         closeCelebration();
       }, 4000);
@@ -884,17 +901,37 @@
       modal.classList.remove('show');
       // Redirect to main React app after closing celebration
       setTimeout(() => {
-        // Try to redirect to the React app - check multiple possible ports
-        const possibleUrls = [
-          'http://localhost:3000',
-          'http://localhost:3001', 
-          'http://localhost:3002',
-          window.location.origin // fallback to current origin
-        ];
-        
-        // For now, redirect to the React app root
-        window.location.href = possibleUrls[0];
+        window.location.href = '/';
       }, 300);
+    }
+
+    const firebaseConfig = loadFirebaseConfig();
+    try { firebase.initializeApp(firebaseConfig); } catch (e) { }
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Auth persistence with fallbacks when web storage is blocked/unavailable
+    (async function setPersistenceWithFallback() {
+      try {
+        await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      } catch (e1) {
+        try {
+          await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+        } catch (e2) {
+          try {
+            await auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+          } catch (e3) {
+            // ignore; environment may not support persistence at all
+          }
+        }
+      }
+    })();
+
+    // Helpers
+    function setBusy(el, busy) {
+      if (!el) return;
+      el.disabled = !!busy;
+      el.style.opacity = busy ? '0.7' : '1';
     }
 
     async function ensureUserDoc(user, source) {
@@ -925,28 +962,9 @@
     auth.getRedirectResult().then(async (result) => {
       if (result.credential) {
         // User signed in via redirect
-        try { 
+        try {
           await ensureUserDoc(result.user, 'google_redirect');
-
-          // Create a mock user object for the React app
-          const mockUser = {
-            id: result.user.uid,
-            username: result.user.displayName || result.user.email.split('@')[0],
-            email: result.user.email,
-            user_type: 'freelancer'
-          };
-
-          // Create a mock JWT token (in a real app, this would come from the backend)
-          const mockToken = btoa(JSON.stringify({
-            sub: result.user.uid,
-            email: result.user.email,
-            exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
-          }));
-
-          // Store the token in localStorage for the React app
-          localStorage.setItem('access_token', mockToken);
-
-          showCelebration('Welcome Back!', 'Successfully signed in with Google!', '🔵');
+          alert('Signed in with Google!');
         } catch (e) {
           console.error('Error handling redirect result:', e);
         }
@@ -955,7 +973,7 @@
       console.error('Redirect result error:', error);
       const errorCode = error.code;
       const errorMessage = error.message;
-      
+
       // Show error message based on current form
       const msg = errorMessage || 'Google sign-in failed';
       if (!signupForm.classList.contains('hidden')) {
@@ -972,7 +990,7 @@
     // Optional: react to auth state (hook for redirect)
     auth.onAuthStateChanged(async (user) => {
       if (user) {
-        try { await ensureUserDoc(user, 'auth_state'); } catch (e) {}
+        try { await ensureUserDoc(user, 'auth_state'); } catch (e) { }
         // You can redirect after login if desired:
         // window.location.href = '/';
       }
@@ -1036,13 +1054,13 @@
         setGazeUp();
       } else {
         pupils.forEach((pupil) => {
-        const eye = pupil.parentElement;
-        const rect = eye.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-        const angle = Math.atan2(mouseY - cy, mouseX - cx);
-        const dist = Math.min(4, Math.hypot(mouseX - cx, mouseY - cy) / 25);
-        pupil.style.transform = `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px)`;
+          const eye = pupil.parentElement;
+          const rect = eye.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          const angle = Math.atan2(mouseY - cy, mouseX - cx);
+          const dist = Math.min(4, Math.hypot(mouseX - cx, mouseY - cy) / 25);
+          pupil.style.transform = `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px)`;
         });
       }
 
@@ -1120,138 +1138,15 @@
       signupErrorMessage.textContent = '';
     });
 
-    // OTP and Password Reset System
-    let currentOTP = '';
-    let currentResetEmail = '';
-    let otpExpiry = 0;
-
-    // Mock user database for demo
-    const mockUsers = [
-      { email: 'demo@example.com', username: 'Demo User' },
-      { email: 'test@test.com', username: 'Test User' },
-      { email: 'user@gmail.com', username: 'Gmail User' }
-    ];
-
-    function generateOTP() {
-      return Math.floor(100000 + Math.random() * 900000).toString();
-    }
-
-    async function sendOTPEmail(email, otp) {
-      // In a real application, this would call your backend API to send email
-      // For demo purposes, we'll simulate the email sending
-      console.log(`Sending OTP ${otp} to ${email}`);
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // In production, you would integrate with services like:
-      // - SendGrid, Mailgun, AWS SES, or Gmail API
-      // - Your backend would handle the actual email sending
-      
-      return true; // Simulate successful sending
-    }
-
-    function showOTPModal(email) {
-      const modal = document.getElementById('otpModal');
-      const messageEl = document.getElementById('otpMessage');
-      messageEl.textContent = `We've sent a 6-digit code to ${email}`;
-      modal.classList.add('show');
-      
-      // Focus on OTP input
-      setTimeout(() => {
-        document.getElementById('otpInput').focus();
-      }, 300);
-    }
-
-    function closeOTPModal() {
-      const modal = document.getElementById('otpModal');
-      modal.classList.remove('show');
-      document.getElementById('otpInput').value = '';
-    }
-
-    async function verifyOTP() {
-      const enteredOTP = document.getElementById('otpInput').value;
-      
-      if (!enteredOTP || enteredOTP.length !== 6) {
-        alert('Please enter a valid 6-digit OTP');
-        return;
-      }
-
-      if (Date.now() > otpExpiry) {
-        alert('OTP has expired. Please request a new one.');
-        return;
-      }
-
-      if (enteredOTP === currentOTP) {
-        closeOTPModal();
-        
-        // Show success and redirect to password reset
-        showCelebration('OTP Verified!', 'You can now reset your password', '✅');
-        
-        // In a real app, you would redirect to password reset page
-        setTimeout(() => {
-          const newPassword = prompt('Enter your new password (min 6 characters):');
-          if (newPassword && newPassword.length >= 6) {
-            showCelebration('Password Reset!', 'Your password has been updated successfully', '🔐');
-          }
-        }, 2000);
-      } else {
-        alert('Invalid OTP. Please try again.');
-        document.getElementById('otpInput').value = '';
-        document.getElementById('otpInput').focus();
-      }
-    }
-
-    async function resendOTP() {
-      if (currentResetEmail) {
-        currentOTP = generateOTP();
-        otpExpiry = Date.now() + (5 * 60 * 1000); // 5 minutes
-        
-        try {
-          await sendOTPEmail(currentResetEmail, currentOTP);
-          alert('New OTP sent to your email!');
-        } catch (error) {
-          alert('Failed to resend OTP. Please try again.');
-        }
-      }
-    }
-
-    // Enhanced Forgot password with user validation and OTP
+    // Forgot password
     forgotPasswordLink.addEventListener('click', async () => {
       const email = emailInput.value || prompt('Enter your email to reset password:');
       if (!email) return;
-      
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        errorMessage.textContent = 'Please enter a valid email address';
-        errorMessage.classList.add('show');
-        setTimeout(() => errorMessage.classList.remove('show'), 3000);
-        return;
-      }
-
-      // Check if user exists (in real app, this would be a backend call)
-      const userExists = mockUsers.some(user => user.email.toLowerCase() === email.toLowerCase());
-      
-      if (!userExists) {
-        errorMessage.textContent = 'No account found with this email address';
-        errorMessage.classList.add('show');
-        setTimeout(() => errorMessage.classList.remove('show'), 3000);
-        return;
-      }
-
       try {
-        // Generate and send OTP
-        currentOTP = generateOTP();
-        currentResetEmail = email;
-        otpExpiry = Date.now() + (5 * 60 * 1000); // 5 minutes expiry
-        
-        await sendOTPEmail(email, currentOTP);
-        showOTPModal(email);
-        
-        // For demo purposes, show the OTP in console
-        console.log(`Demo OTP for ${email}: ${currentOTP}`);
-        
-      } catch (error) {
-        errorMessage.textContent = 'Failed to send reset email. Please try again.';
+        await auth.sendPasswordResetEmail(email);
+        alert('Password reset email sent!');
+      } catch (err) {
+        errorMessage.textContent = err.message || 'Failed to send reset email';
         errorMessage.classList.add('show');
         setTimeout(() => errorMessage.classList.remove('show'), 3000);
       }
@@ -1277,34 +1172,67 @@
       }
       setBusy(document.getElementById('loginBtn'), true);
       try {
-        // Mock login delay for better UX
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Sign in with Firebase
+        const userCredential = await auth.signInWithEmailAndPassword(email, pass);
+        const user = userCredential.user;
 
-        // Create a mock user object for the React app with creative username
-        const creativeUsername = generateCreativeUsername(email);
-        const mockUser = {
-          id: 'user_' + Date.now(),
-          username: creativeUsername,
-          email: email,
-          user_type: 'freelancer'
-        };
+        // Get Firebase ID token
+        const idToken = await user.getIdToken();
 
-        // Create a mock JWT token (in a real app, this would come from the backend)
-        const mockToken = btoa(JSON.stringify({
-          sub: mockUser.id,
-          email: mockUser.email,
-          name: creativeUsername,
-          exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
-        }));
+        // Verify with backend
+        const backendUrl = `${window.location.protocol}//${window.location.hostname}:8000`;
+        const response = await fetch(`${backendUrl}/api/auth/firebase/verify`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
-        // Store the token in localStorage for the React app
-        localStorage.setItem('access_token', mockToken);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || `Server error: ${response.status}`);
+        }
 
-        showCelebration(`Welcome ${creativeUsername}!`, 'Login successful! Redirecting you now...', '🎉');
+        const data = await response.json();
+
+        // Store the Firebase ID token for future requests
+        localStorage.setItem('firebase_token', idToken);
+
+        // Show celebration
+        showCelebration('Welcome Back!', 'Login successful! Redirecting you now...', '🎉');
       } catch (err) {
-        errorMessage.textContent = (err && err.message) || 'Login failed';
+        let errorMsg = 'Login failed';
+        if (err.code === 'auth/user-not-found') {
+          errorMsg = 'No account found with this email';
+        } else if (err.code === 'auth/wrong-password') {
+          errorMsg = 'Incorrect password';
+        } else if (err.code === 'auth/invalid-email') {
+          errorMsg = 'Invalid email address';
+        } else if (err.code === 'auth/user-disabled') {
+          errorMsg = 'This account has been disabled';
+        } else if (err.message) {
+          errorMsg = err.message;
+        }
+
+        errorMessage.textContent = errorMsg;
         errorMessage.classList.add('show');
-        setTimeout(() => errorMessage.classList.remove('show'), 3000);
+
+        // Show sad faces on error
+        mouths.forEach(mouth => {
+          mouth.classList.remove('flat', 'smile', 'sad');
+          mouth.classList.add('sad');
+        });
+        tears.forEach(tear => tear.classList.add('show'));
+
+        setTimeout(() => {
+          errorMessage.classList.remove('show');
+          mouths.forEach(mouth => {
+            mouth.classList.remove('sad');
+            mouth.classList.add('flat');
+          });
+          tears.forEach(tear => tear.classList.remove('show'));
+        }, 3000);
       } finally {
         setBusy(document.getElementById('loginBtn'), false);
       }
@@ -1314,8 +1242,17 @@
     signupForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       signupErrorMessage.textContent = '';
+      const username = (document.getElementById('signupUsername').value || '').trim();
       const email = (signupEmailInput.value || '').trim();
       const pass = signupPasswordInput.value || '';
+      const userType = document.getElementById('userType').value;
+
+      if (!username) {
+        signupErrorMessage.textContent = 'Username is required';
+        signupErrorMessage.classList.add('show');
+        setTimeout(() => signupErrorMessage.classList.remove('show'), 2500);
+        return;
+      }
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         signupErrorMessage.textContent = 'Enter a valid email address';
         signupErrorMessage.classList.add('show');
@@ -1328,178 +1265,169 @@
         setTimeout(() => signupErrorMessage.classList.remove('show'), 2500);
         return;
       }
+      if (!userType) {
+        signupErrorMessage.textContent = 'Please select an account type';
+        signupErrorMessage.classList.add('show');
+        setTimeout(() => signupErrorMessage.classList.remove('show'), 2500);
+        return;
+      }
+
       setBusy(document.getElementById('signupBtn'), true);
       try {
-        // Mock signup delay for better UX
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Create Firebase user
+        const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
+        const user = userCredential.user;
 
-        // Create a mock user object for the React app with creative username
-        const creativeUsername = generateCreativeUsername(email);
-        const mockUser = {
-          id: 'user_' + Date.now(),
-          username: creativeUsername,
-          email: email,
-          user_type: 'freelancer'
-        };
+        // Update Firebase user profile with username
+        await user.updateProfile({
+          displayName: username
+        });
 
-        // Create a mock JWT token (in a real app, this would come from the backend)
-        const mockToken = btoa(JSON.stringify({
-          sub: mockUser.id,
-          email: mockUser.email,
-          name: creativeUsername,
-          exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
-        }));
+        // Get Firebase ID token
+        const idToken = await user.getIdToken();
 
-        // Store the token in localStorage for the React app
-        localStorage.setItem('access_token', mockToken);
+        // Create user in backend with user type
+        const backendUrl = `${window.location.protocol}//${window.location.hostname}:8000`;
+        const response = await fetch(`${backendUrl}/api/auth/firebase/signup`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: username,
+            user_type: userType
+          })
+        });
 
-        showCelebration(`Welcome ${creativeUsername}!`, 'Account created! You are now signed in and ready to go!', '✨');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          // If backend fails, we should delete the Firebase user to keep things consistent
+          await user.delete();
+          throw new Error(errorData.detail || `Server error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Store the Firebase ID token for future requests
+        localStorage.setItem('firebase_token', idToken);
+
+        // Show celebration
+        showCelebration('Account Created!', 'Welcome! Your account has been created successfully.', '✨');
       } catch (err) {
-        signupErrorMessage.textContent = (err && err.message) || 'Signup failed';
+        let errorMsg = 'Signup failed';
+        if (err.code === 'auth/email-already-in-use') {
+          errorMsg = 'An account with this email already exists';
+        } else if (err.code === 'auth/invalid-email') {
+          errorMsg = 'Invalid email address';
+        } else if (err.code === 'auth/weak-password') {
+          errorMsg = 'Password is too weak';
+        } else if (err.code === 'auth/operation-not-allowed') {
+          errorMsg = 'Email/password accounts are not enabled';
+        } else if (err.message) {
+          errorMsg = err.message;
+        }
+
+        signupErrorMessage.textContent = errorMsg;
         signupErrorMessage.classList.add('show');
-        setTimeout(() => signupErrorMessage.classList.remove('show'), 3000);
+
+        // Show sad faces on error
+        mouths.forEach(mouth => {
+          mouth.classList.remove('flat', 'smile', 'sad');
+          mouth.classList.add('sad');
+        });
+        tears.forEach(tear => tear.classList.add('show'));
+
+        setTimeout(() => {
+          signupErrorMessage.classList.remove('show');
+          mouths.forEach(mouth => {
+            mouth.classList.remove('sad');
+            mouth.classList.add('flat');
+          });
+          tears.forEach(tear => tear.classList.remove('show'));
+        }, 3000);
       } finally {
         setBusy(document.getElementById('signupBtn'), false);
       }
     });
-    
-    // Google sign-in with Firebase fallback to mock
+
+    // Google sign-in with backend integration
     async function googleSignIn() {
-      const googleBtn = document.getElementById('googleBtn');
-      const googleBtnSignup = document.getElementById('googleBtnSignup');
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.addScope('email');
+      provider.addScope('profile');
+
+      // Show loading state on faces
+      mouths.forEach(mouth => {
+        mouth.classList.remove('flat', 'smile', 'sad');
+        mouth.classList.add('smile');
+      });
 
       try {
-        // Add loading state to buttons
-        if (googleBtn && !googleBtn.disabled) {
-          googleBtn.disabled = true;
-          googleBtn.textContent = '🔵 Signing in...';
-          googleBtn.style.opacity = '0.7';
-        }
-        if (googleBtnSignup && !googleBtnSignup.disabled) {
-          googleBtnSignup.disabled = true;
-          googleBtnSignup.textContent = '🔵 Signing in...';
-          googleBtnSignup.style.opacity = '0.7';
-        }
+        const result = await auth.signInWithPopup(provider);
+        const user = result.user;
 
-        // Check if Firebase Auth is available and properly configured
-        if (auth && firebase.auth.GoogleAuthProvider) {
-          try {
-            // Create Google Auth provider
-            const provider = new firebase.auth.GoogleAuthProvider();
-            provider.addScope('email');
-            provider.addScope('profile');
+        // Get Firebase ID token
+        const idToken = await user.getIdToken();
 
-            // Sign in with popup
-            const result = await auth.signInWithPopup(provider);
-            
-            if (result.user) {
-              // Ensure user document exists
-              try {
-                await ensureUserDoc(result.user, 'google_popup');
-              } catch (e) {
-                console.log('Firestore not available, skipping user doc creation');
-              }
-
-              // Create a JWT token with real user data
-              const token = btoa(JSON.stringify({
-                sub: result.user.uid,
-                email: result.user.email,
-                name: result.user.displayName,
-                picture: result.user.photoURL,
-                exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
-              }));
-
-              // Store the token in localStorage for the React app
-              localStorage.setItem('access_token', token);
-
-              // Show celebration with user's actual name or creative username
-              const displayName = result.user.displayName || generateCreativeUsername(result.user.email);
-              showCelebration(`Welcome ${displayName}!`, 'Successfully signed in with Google!', '🔵');
-              return;
-            }
-          } catch (firebaseError) {
-            console.error('Firebase Google sign-in failed:', firebaseError);
-            // Fall through to mock implementation
+        // Verify with backend
+        const backendUrl = `${window.location.protocol}//${window.location.hostname}:8000`;
+        const response = await fetch(`${backendUrl}/api/auth/firebase/verify`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json'
           }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || `Server error: ${response.status}`);
         }
 
-        // Fallback: Mock Google sign-in for demo purposes
-        console.log('Using mock Google sign-in');
-        
-        // Simulate delay
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        const data = await response.json();
+        console.log('Authentication successful:', data);
 
-        // Create mock user data with creative username
-        const creativeUsername = generateCreativeUsername('demo@example.com', 'Demo User');
-        const mockUser = {
-          id: 'google_user_' + Date.now(),
-          username: creativeUsername,
-          email: 'demo@example.com',
-          user_type: 'freelancer'
-        };
-
-        // Create mock JWT token
-        const mockToken = btoa(JSON.stringify({
-          sub: mockUser.id,
-          email: mockUser.email,
-          name: creativeUsername,
-          picture: null,
-          exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
-        }));
-
-        // Store the token in localStorage for the React app
-        localStorage.setItem('access_token', mockToken);
+        // Store the Firebase ID token for future requests
+        localStorage.setItem('firebase_token', idToken);
 
         // Show celebration
-        showCelebration(`Welcome ${creativeUsername}!`, 'Successfully signed in with Google!', '🔵');
+        showCelebration('Welcome!', 'Successfully signed in with Google!', '🔵');
 
-      } catch (error) {
-        console.error('Google sign-in error:', error);
-        
-        // Show error message
-        let errorMsg = 'Google sign-in failed';
-        if (error.code === 'auth/popup-closed-by-user') {
-          errorMsg = 'Sign-in cancelled';
-        } else if (error.code === 'auth/popup-blocked') {
-          errorMsg = 'Popup blocked. Please allow popups and try again';
+      } catch (err) {
+        console.error('Google sign-in error:', err);
+        const code = err && err.code ? String(err.code) : '';
+        let errorMessage = err && err.message ? err.message : 'Google sign-in failed';
+
+        // Handle specific error cases
+        if (code === 'auth/popup-closed-by-user') {
+          errorMessage = 'Sign in was cancelled. Please try again.';
+        } else if (code === 'auth/popup-blocked') {
+          errorMessage = 'Popup was blocked. Please allow popups and try again.';
+        } else if (code === 'auth/network-request-failed') {
+          errorMessage = 'Network error. Please check your connection and try again.';
         }
-        
-        showErrorMessage(errorMsg);
-      } finally {
-        // Reset button states
-        if (googleBtn) {
-          googleBtn.disabled = false;
-          googleBtn.textContent = '🔵 Continue with Google';
-          googleBtn.style.opacity = '1';
-        }
-        if (googleBtnSignup) {
-          googleBtnSignup.disabled = false;
-          googleBtnSignup.textContent = '🔵 Continue with Google';
-          googleBtnSignup.style.opacity = '1';
-        }
+
+        showErrorMessage(errorMessage);
+
+        // Show sad faces on error
+        mouths.forEach(mouth => {
+          mouth.classList.remove('flat', 'smile', 'sad');
+          mouth.classList.add('sad');
+        });
+        tears.forEach(tear => tear.classList.add('show'));
+
+        setTimeout(() => {
+          mouths.forEach(mouth => {
+            mouth.classList.remove('sad');
+            mouth.classList.add('flat');
+          });
+          tears.forEach(tear => tear.classList.remove('show'));
+        }, 3000);
       }
     }
-    
-    // Helper function to show/hide loading state on buttons
-    function setBusy(button, busy) {
-      if (!button) return;
-      if (busy) {
-        button.disabled = true;
-        button.style.opacity = '0.7';
-        button.style.cursor = 'not-allowed';
-        const originalText = button.textContent;
-        button.dataset.originalText = originalText;
-        button.textContent = originalText.includes('Login') ? 'Logging in...' : 'Signing up...';
-      } else {
-        button.disabled = false;
-        button.style.opacity = '1';
-        button.style.cursor = 'pointer';
-        if (button.dataset.originalText) {
-          button.textContent = button.dataset.originalText;
-          delete button.dataset.originalText;
-        }
-      }
-    }
+
+
 
     // Helper function to show error messages
     function showErrorMessage(msg) {
@@ -1513,8 +1441,27 @@
         setTimeout(() => errorMessage.classList.remove('show'), 3000);
       }
     }
+
+    // Clear Firebase auth state on page load to prevent auto-login
+    window.addEventListener('load', async () => {
+      try {
+        // Sign out any existing Firebase user
+        await auth.signOut();
+        // Clear all tokens
+        localStorage.removeItem('firebase_token');
+        localStorage.removeItem('access_token');
+        console.log('Cleared authentication state');
+      } catch (e) {
+        console.log('No existing auth state to clear');
+      }
+    });
+
+    // Add Google button event listeners
     googleBtn.addEventListener('click', googleSignIn);
     googleBtnSignup.addEventListener('click', googleSignIn);
+
+    // Remove auto-login behavior - users must manually sign in each time
   </script>
 </body>
+
 </html>

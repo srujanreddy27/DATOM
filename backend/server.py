@@ -11,11 +11,14 @@ import uuid
 from datetime import datetime, timezone
 import jwt
 from passlib.context import CryptContext
-from requests_oauthlib import OAuth2Session
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import JSONResponse
+from firebase_auth import initialize_firebase, verify_firebase_token, get_user_from_firebase_token
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Initialize Firebase Admin SDK
+initialize_firebase()
 
 # MongoDB connection
 USE_MEMORY_DB = os.environ.get('USE_MEMORY_DB', 'false').lower() == 'true'
@@ -77,6 +80,7 @@ class User(BaseModel):
     completed_tasks: int = 0
     total_earnings: float = 0.0
     reputation_score: int = 100
+    firebase_uid: Optional[str] = None  # Firebase user ID
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserCreate(BaseModel):
@@ -136,14 +140,16 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 # Minimal auth storage separate from public user profile
 memory_auth_users = []  # {id, email, hashed_password, user_id}
 
-# Google OAuth config
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-OAUTH_REDIRECT_URI = os.environ.get("OAUTH_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
+# Frontend configuration
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
-GOOGLE_AUTHORIZATION_BASE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+
+# Blockchain Configuration
+NETWORK_NAME = os.environ.get("NETWORK_NAME", "Datom Test Network")
+RPC_URL = os.environ.get("RPC_URL", "http://127.0.0.1:8545")
+CHAIN_ID = int(os.environ.get("CHAIN_ID", "31337"))
+CHAIN_ID_HEX = os.environ.get("CHAIN_ID_HEX", "0x7a69")
+CURRENCY_SYMBOL = os.environ.get("CURRENCY_SYMBOL", "ETH")
+ESCROW_ADDRESS = os.environ.get("ESCROW_ADDRESS", "0xA54130603Aed8B222f9BE8F22F4F8ED458505A27")
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -226,23 +232,51 @@ async def get_user_by_id(user_id: str) -> Optional[User]:
             return User(**u)
     return None
 
+async def get_user_by_firebase_uid(firebase_uid: str) -> Optional[User]:
+    """Get user by Firebase UID"""
+    if db is not None:
+        try:
+            doc = await db.users.find_one({"firebase_uid": firebase_uid})
+            if doc:
+                return User(**doc)
+        except Exception:
+            pass
+    for u in memory_users:
+        if u.get("firebase_uid") == firebase_uid:
+            return User(**u)
+    return None
+
+async def save_user(user: User):
+    """Save user to database"""
+    prepared_data = prepare_for_mongo(user.dict())
+    if db is not None:
+        try:
+            await db.users.insert_one(prepared_data)
+            return
+        except Exception:
+            pass
+    memory_users.append(prepared_data)
+
 async def get_current_user(authorization: Optional[str] = Header(default=None)) -> User:
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    token = authorization.split(" ", 1)[1]
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        user = await get_user_by_id(user_id)
-        if not user:
-            raise HTTPException(status_code=401, detail="User not found")
-        return user
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    # Verify Firebase token
+    decoded_token = await verify_firebase_token(authorization)
+    firebase_user = get_user_from_firebase_token(decoded_token)
+    
+    # Get or create user in our database
+    user = await get_user_by_firebase_uid(firebase_user["uid"])
+    if not user:
+        # Create new user from Firebase data
+        user_obj = User(
+            id=str(uuid.uuid4()),
+            username=firebase_user["name"],
+            email=firebase_user["email"],
+            user_type="freelancer",  # default
+            firebase_uid=firebase_user["uid"]
+        )
+        await save_user(user_obj)
+        user = user_obj
+    
+    return user
 
 # Helper function to prepare data for MongoDB
 def prepare_for_mongo(data):
@@ -300,6 +334,18 @@ async def cleanup_tasks():
 @api_router.get("/")
 async def root():
     return {"message": "DecentraTask API - Decentralized Task Outsourcing Platform"}
+
+@api_router.get("/blockchain/config")
+async def get_blockchain_config():
+    """Get blockchain network configuration"""
+    return {
+        "network_name": NETWORK_NAME,
+        "rpc_url": RPC_URL,
+        "chain_id": CHAIN_ID,
+        "chain_id_hex": CHAIN_ID_HEX,
+        "currency_symbol": CURRENCY_SYMBOL,
+        "escrow_address": ESCROW_ADDRESS
+    }
 
 # Task Management Routes
 @api_router.post("/tasks", response_model=Task)
@@ -542,111 +588,162 @@ async def login(payload: LoginRequest):
     return TokenResponse(access_token=token, user=user)
 
 @api_router.get("/auth/me", response_model=User)
-async def me(current_user: User = Depends(get_current_user)):
-    return current_user
-
-# ---------------- Google OAuth ----------------
-def build_google_session(state: Optional[str] = None):
-    scope = [
-        "openid",
-        "https://www.googleapis.com/auth/userinfo.email",
-        "https://www.googleapis.com/auth/userinfo.profile",
-    ]
-    # Allow insecure transport for localhost development
-    import os
-    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+async def me(authorization: Optional[str] = Header(default=None)):
+    """Get current user info - supports both Firebase and JWT tokens"""
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
     
-    return OAuth2Session(
-        GOOGLE_CLIENT_ID,
-        scope=scope,
-        redirect_uri=OAUTH_REDIRECT_URI,
-        state=state,
-    )
-
-@api_router.get("/auth/google/login")
-async def google_login(redirect: Optional[str] = None):
-    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-        raise HTTPException(status_code=500, detail="Google OAuth not configured")
-    oauth = build_google_session()
-    authorization_url, state = oauth.authorization_url(
-        GOOGLE_AUTHORIZATION_BASE_URL,
-        access_type="offline",
-        prompt="select_account",
-        include_granted_scopes="true",
-    )
-    # Store state and next redirect in a signed-less memory cookie via query (simple demo)
-    # In production, use server-side session/state store.
-    target = redirect or FRONTEND_ORIGIN
-    response = RedirectResponse(url=authorization_url)
-    response.set_cookie(key="oauth_state", value=state, httponly=True, secure=False, samesite="lax")
-    response.set_cookie(key="post_login_redirect", value=target, httponly=True, secure=False, samesite="lax")
-    return response
-
-@api_router.get("/auth/google/callback")
-async def google_callback(request: Request):
-    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-        raise HTTPException(status_code=500, detail="Google OAuth not configured")
-    state_cookie = request.cookies.get("oauth_state")
-    oauth = build_google_session(state=state_cookie)
+    token = authorization.split(" ", 1)[1]
+    
+    # Try Firebase token first
     try:
-        token = oauth.fetch_token(
-            GOOGLE_TOKEN_URL,
-            client_secret=GOOGLE_CLIENT_SECRET,
-            authorization_response=str(request.url),
-        )
-    except Exception as e:
-        print(f"OAuth token exchange error: {e}")
-        print(f"Client ID: {GOOGLE_CLIENT_ID}")
-        print(f"Redirect URI: {OAUTH_REDIRECT_URI}")
-        print(f"Request URL: {request.url}")
-        raise HTTPException(status_code=400, detail=f"Failed to exchange token: {str(e)}")
+        decoded_token = await verify_firebase_token(authorization)
+        firebase_user = get_user_from_firebase_token(decoded_token)
+        
+        # Get or create user in our database
+        user = await get_user_by_firebase_uid(firebase_user["uid"])
+        if not user:
+            # Create new user from Firebase data
+            user_obj = User(
+                username=firebase_user["name"],
+                email=firebase_user["email"],
+                user_type="freelancer",  # default
+                firebase_uid=firebase_user["uid"]
+            )
+            await save_user(user_obj)
+            user = user_obj
+        
+        return user
+    except HTTPException:
+        # If Firebase token fails, try JWT token
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            if not user_id:
+                raise HTTPException(status_code=401, detail="Invalid token")
+            user = await get_user_by_id(user_id)
+            if not user:
+                raise HTTPException(status_code=401, detail="User not found")
+            return user
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid token")
 
-    # Get user info
-    try:
-        resp = oauth.get(GOOGLE_USERINFO_URL)
-        info = resp.json()
-        email = info.get("email")
-        name = info.get("name") or (email.split("@")[0] if email else "user")
-        picture = info.get("picture")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Failed to fetch user info")
-
-    if not email:
-        raise HTTPException(status_code=400, detail="Email not available from Google")
-
-    # Ensure User profile
-    user_doc = None
+@api_router.put("/auth/me/user-type")
+async def update_user_type(user_type: str, current_user: User = Depends(get_current_user)):
+    """Update user type (client or freelancer)"""
+    if user_type not in ["client", "freelancer"]:
+        raise HTTPException(status_code=400, detail="Invalid user type. Must be 'client' or 'freelancer'")
+    
+    # Update in database
     if db is not None:
         try:
-            existing = await db.users.find_one({"email": email.lower()})
-            if existing:
-                user_doc = User(**existing)
-            else:
-                user_obj = User(username=name, email=email.lower(), user_type="freelancer")
-                await db.users.insert_one(prepare_for_mongo(user_obj.dict()))
-                user_doc = user_obj
+            result = await db.users.update_one(
+                {"id": current_user.id},
+                {"$set": {"user_type": user_type}}
+            )
+            if result.matched_count == 0:
+                raise HTTPException(status_code=404, detail="User not found")
         except Exception:
             pass
-    if user_doc is None:
+    else:
         # Memory fallback
         for u in memory_users:
-            if u.get("email") == email.lower():
-                user_doc = User(**u)
+            if u.get("id") == current_user.id:
+                u["user_type"] = user_type
                 break
-        if user_doc is None:
-            user_obj = User(username=name, email=email.lower(), user_type="freelancer")
-            memory_users.append(prepare_for_mongo(user_obj.dict()))
-            user_doc = user_obj
+    
+    return {"message": "User type updated successfully", "user_type": user_type}
 
-    # Upsert auth record
-    await upsert_auth_record_by_email(email, user_doc.id)
+# ---------------- Firebase Authentication ----------------
+@api_router.get("/auth/firebase/test")
+async def test_firebase():
+    """Test Firebase setup"""
+    try:
+        import firebase_admin
+        app = firebase_admin.get_app()
+        return {
+            "status": "Firebase initialized",
+            "project_id": app.project_id,
+            "message": "Firebase Admin SDK is working correctly"
+        }
+    except Exception as e:
+        return {
+            "status": "Firebase error",
+            "error": str(e),
+            "message": "Firebase Admin SDK is not working"
+        }
 
-    # Issue JWT and redirect back
-    token_jwt = create_access_token({"sub": user_doc.id, "email": user_doc.email})
-    post_redirect = request.cookies.get("post_login_redirect") or FRONTEND_ORIGIN
-    # Append token as query param
-    sep = "&" if ("?" in post_redirect) else "?"
-    return RedirectResponse(url=f"{post_redirect}{sep}token={token_jwt}")
+@api_router.post("/auth/firebase/verify")
+async def verify_firebase_auth(authorization: Optional[str] = Header(default=None)):
+    """Verify Firebase token and return user info"""
+    try:
+        # Verify Firebase token
+        decoded_token = await verify_firebase_token(authorization)
+        firebase_user = get_user_from_firebase_token(decoded_token)
+        
+        # Get or create user in our database
+        user = await get_user_by_firebase_uid(firebase_user["uid"])
+        if not user:
+            # Create new user from Firebase data
+            user_obj = User(
+                username=firebase_user["name"],
+                email=firebase_user["email"],
+                user_type="freelancer",  # default
+                firebase_uid=firebase_user["uid"]
+            )
+            await save_user(user_obj)
+            user = user_obj
+        
+        return {
+            "user": user,
+            "firebase_user": firebase_user
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
+
+class FirebaseSignupRequest(BaseModel):
+    username: str
+    user_type: str
+
+@api_router.post("/auth/firebase/signup")
+async def firebase_signup(payload: FirebaseSignupRequest, authorization: Optional[str] = Header(default=None)):
+    """Create a new user account with Firebase authentication"""
+    try:
+        # Verify Firebase token
+        decoded_token = await verify_firebase_token(authorization)
+        firebase_user = get_user_from_firebase_token(decoded_token)
+        
+        # Check if user already exists
+        existing_user = await get_user_by_firebase_uid(firebase_user["uid"])
+        if existing_user:
+            return {
+                "user": existing_user,
+                "firebase_user": firebase_user,
+                "message": "User already exists"
+            }
+        
+        # Create new user
+        user_obj = User(
+            username=payload.username,
+            email=firebase_user["email"],
+            user_type=payload.user_type,
+            firebase_uid=firebase_user["uid"]
+        )
+        await save_user(user_obj)
+        
+        return {
+            "user": user_obj,
+            "firebase_user": firebase_user,
+            "message": "User created successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
 
 # Escrow Management Routes
 @api_router.post("/escrow", response_model=EscrowTransaction)
@@ -765,15 +862,13 @@ async def get_platform_stats():
 # Include the router in the main app
 app.include_router(api_router)
 
+# CORS Configuration
+CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001", 
-        "http://127.0.0.1:3000",
-        "*"  # Allow all origins for development
-    ],
+    allow_origins=CORS_ORIGINS + ["*"],  # Add wildcard for development
     allow_methods=["*"],
     allow_headers=["*"],
 )
