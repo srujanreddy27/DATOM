@@ -82,10 +82,8 @@ agenthub/agents/youtube/db
 android-sdk/ -e 
 # Environment files
 *.env
-*.env.*
 -e 
 # Environment files
 *.env
-*.env.*
 # Firebase
 backend/firebase-service-account-key.json
