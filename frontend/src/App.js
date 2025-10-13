@@ -306,131 +306,262 @@ const Navigation = () => {
           onComplete={() => setShowWelcome(false)} 
         />
       )}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
-        <div className="container mx-auto px-6">
-        <div className="flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center">
-              <Shield className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-white">DecentraTask</span>
-          </Link>
-
-          <div className="hidden md:flex items-center space-x-8">
-            <Link to="/" className="text-gray-300 hover:text-teal-400 transition-colors">
-              Home
-            </Link>
-            <Link to="/tasks" className="text-gray-300 hover:text-teal-400 transition-colors">
-              Browse Tasks
-            </Link>
-            {isLoading ? (
-              <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-500"></div>
-                <span className="text-gray-400">Loading...</span>
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-gray-950/95 backdrop-blur-lg border-b border-gray-800/50 shadow-lg transition-all duration-300">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            
+            {/* Logo Section */}
+            <Link to="/" className="flex items-center space-x-3 group">
+              <div className="w-9 h-9 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-teal-500/25 group-hover:scale-105 transition-all duration-300">
+                <Shield className="w-5 h-5 text-white group-hover:rotate-12 transition-transform duration-300" />
               </div>
-            ) : user ? (
-              <div className="flex items-center space-x-4">
-                <Link to="/profile" className="text-gray-300 hover:text-teal-400 transition-colors">
-                  Profile
-                </Link>
-                <span className="text-gray-300">Welcome, {user.username}</span>
-                <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800" onClick={logout}>
-                  Logout
-                </Button>
-              </div>
-            ) : (
-              <a href="/login.html" className="text-gray-300 hover:text-teal-400 transition-colors">
-                Login
-              </a>
-            )}
-            <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800" onClick={connectWallet}>
-              {account ? `${account.slice(0, 6)}...${account.slice(-4)}` : "Connect Wallet"}
-            </Button>
-            {user && user.user_type === 'client' && (
-              <Link to="/post-task">
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                  Post Task
-                </Button>
-              </Link>
-            )}
-            {user && user.user_type === 'freelancer' && (
-              <Link to="/tasks">
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                  Find Tasks
-                </Button>
-              </Link>
-            )}
-            {!user && !isLoading && (
-              <a href="/login.html">
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                  Get Started
-                </Button>
-              </a>
-            )}
-          </div>
+              <span className="text-xl font-bold text-white tracking-tight group-hover:text-teal-300 transition-colors duration-300">DecentraTask</span>
+            </Link>
 
-          <div className="md:hidden">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-white"
-            >
-              <Menu className="w-5 h-5" />
-            </Button>
-          </div>
-        </div>
-
-        {isMenuOpen && (
-          <div className="md:hidden py-4 border-t border-gray-800">
-            <div className="flex flex-col space-y-4">
-              <Link to="/" className="text-gray-300 hover:text-teal-400 transition-colors">
+            {/* Main Navigation - Desktop */}
+            <div className="hidden md:flex items-center space-x-1">
+              <Link 
+                to="/" 
+                className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+              >
                 Home
               </Link>
-              <Link to="/tasks" className="text-gray-300 hover:text-teal-400 transition-colors">
+              <Link 
+                to="/tasks" 
+                className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+              >
                 Browse Tasks
               </Link>
-              {isLoading ? (
-                <span className="text-gray-400">Loading...</span>
-              ) : user ? (
-                <div className="flex flex-col space-y-2">
-                  <Link to="/profile" className="text-gray-300 hover:text-teal-400 transition-colors">
-                    Profile
-                  </Link>
-                  <span className="text-gray-300">Welcome, {user.username}</span>
-                  <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800 self-start" onClick={logout}>
-                    Logout
-                  </Button>
-                </div>
-              ) : (
-                <a href="/login.html" className="text-gray-300 hover:text-teal-400 transition-colors">
-                  Login
-                </a>
-              )}
-              {user && user.user_type === 'client' && (
-                <Link to="/post-task">
-                  <Button size="sm" className="bg-teal-600 hover:bg-teal-700 self-start">
-                    Post Task
-                  </Button>
+              {user && (
+                <Link 
+                  to="/profile" 
+                  className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium relative"
+                >
+                  Profile
+                  {/* Future: Add notification badge here if needed */}
                 </Link>
-              )}
-              {user && user.user_type === 'freelancer' && (
-                <Link to="/tasks">
-                  <Button size="sm" className="bg-teal-600 hover:bg-teal-700 self-start">
-                    Find Tasks
-                  </Button>
-                </Link>
-              )}
-              {!user && !isLoading && (
-                <a href="/login.html">
-                  <Button size="sm" className="bg-teal-600 hover:bg-teal-700 self-start">
-                    Get Started
-                  </Button>
-                </a>
               )}
             </div>
+
+            {/* Right Section - Desktop */}
+            <div className="hidden md:flex items-center space-x-3">
+              
+              {/* Wallet Connection */}
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500 transition-all duration-200"
+                onClick={connectWallet}
+              >
+                {account ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span>{account.slice(0, 6)}...{account.slice(-4)}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border border-gray-400 rounded"></div>
+                    <span>Connect Wallet</span>
+                  </div>
+                )}
+              </Button>
+
+              {/* Authentication & Actions */}
+              {isLoading ? (
+                <div className="flex items-center space-x-2 px-3">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-500"></div>
+                  <span className="text-gray-400 text-sm">Loading...</span>
+                </div>
+              ) : user ? (
+                <div className="flex items-center space-x-3">
+                  
+                  {/* Primary Action Button */}
+                  {user.user_type === 'client' ? (
+                    <Link to="/post-task">
+                      <Button size="sm" className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white shadow-lg hover:shadow-teal-500/25 transition-all duration-200">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Post Task
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Link to="/tasks">
+                      <Button size="sm" className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white shadow-lg hover:shadow-teal-500/25 transition-all duration-200">
+                        <Search className="w-4 h-4 mr-2" />
+                        Find Tasks
+                      </Button>
+                    </Link>
+                  )}
+
+                  {/* User Menu */}
+                  <div className="flex items-center space-x-3 pl-3 border-l border-gray-700">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-full flex items-center justify-center">
+                        <User className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-white">{user.username}</span>
+                        <span className="text-xs text-gray-400 capitalize">{user.user_type}</span>
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      className="text-gray-400 hover:text-white hover:bg-gray-800 transition-all duration-200"
+                      onClick={logout}
+                    >
+                      Logout
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-3">
+                  <a 
+                    href="/login.html" 
+                    className="text-gray-300 hover:text-white transition-colors duration-200 font-medium"
+                  >
+                    Login
+                  </a>
+                  <a href="/login.html">
+                    <Button size="sm" className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white shadow-lg hover:shadow-teal-500/25 transition-all duration-200">
+                      Get Started
+                    </Button>
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile Menu Button */}
+            <div className="md:hidden">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="text-white hover:bg-gray-800 transition-all duration-200"
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
-        )}
+
+          {/* Mobile Menu */}
+          {isMenuOpen && (
+            <div className="md:hidden border-t border-gray-800/50 bg-gray-950/95 backdrop-blur-lg animate-in slide-in-from-top-2 duration-200">
+              <div className="px-4 py-6 space-y-4">
+                
+                {/* Navigation Links */}
+                <div className="space-y-2">
+                  <Link 
+                    to="/" 
+                    className="block px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Home
+                  </Link>
+                  <Link 
+                    to="/tasks" 
+                    className="block px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Browse Tasks
+                  </Link>
+                  {user && (
+                    <Link 
+                      to="/profile" 
+                      className="block px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Profile
+                    </Link>
+                  )}
+                </div>
+
+                {/* Wallet Connection */}
+                <div className="pt-4 border-t border-gray-800/50">
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500 justify-start"
+                    onClick={connectWallet}
+                  >
+                    {account ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>{account.slice(0, 6)}...{account.slice(-4)}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 border border-gray-400 rounded"></div>
+                        <span>Connect Wallet</span>
+                      </div>
+                    )}
+                  </Button>
+                </div>
+
+                {/* User Section */}
+                {isLoading ? (
+                  <div className="flex items-center space-x-2 px-4 py-3">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-500"></div>
+                    <span className="text-gray-400">Loading...</span>
+                  </div>
+                ) : user ? (
+                  <div className="space-y-4 pt-4 border-t border-gray-800/50">
+                    
+                    {/* User Info */}
+                    <div className="flex items-center space-x-3 px-4 py-3 bg-gray-800/30 rounded-lg">
+                      <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-full flex items-center justify-center">
+                        <User className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-white">{user.username}</span>
+                        <span className="text-sm text-gray-400 capitalize">{user.user_type}</span>
+                      </div>
+                    </div>
+
+                    {/* Primary Action */}
+                    {user.user_type === 'client' ? (
+                      <Link to="/post-task" onClick={() => setIsMenuOpen(false)}>
+                        <Button className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white justify-start">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Post Task
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Link to="/tasks" onClick={() => setIsMenuOpen(false)}>
+                        <Button className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white justify-start">
+                          <Search className="w-4 h-4 mr-2" />
+                          Find Tasks
+                        </Button>
+                      </Link>
+                    )}
+
+                    {/* Logout */}
+                    <Button 
+                      variant="outline" 
+                      className="w-full border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500 justify-start"
+                      onClick={() => {
+                        logout();
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      Logout
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3 pt-4 border-t border-gray-800/50">
+                    <a href="/login.html">
+                      <Button variant="outline" className="w-full border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500 justify-start">
+                        Login
+                      </Button>
+                    </a>
+                    <a href="/login.html">
+                      <Button className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white justify-start">
+                        Get Started
+                      </Button>
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </nav>
     </>
@@ -868,7 +999,7 @@ const ProfilePage = () => {
       // Clear user tasks since they'll be different for the new user type
       setUserTasks([]);
 
-      alert(`Account type changed to ${newUserType === 'client' ? 'Client' : 'Freelancer'} successfully!`);
+      // Account type changed successfully - no need for alert
 
       // Refresh the page to update all components
       window.location.reload();

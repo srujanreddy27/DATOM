@@ -655,6 +655,20 @@
 </head>
 
 <body>
+  <!-- Loading Indicator -->
+  <div id="loading" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #14b8a6; font-size: 18px; z-index: 9999;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 20px; height: 20px; border: 2px solid #14b8a6; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      Loading...
+    </div>
+  </div>
+  <style>
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+
   <!-- Celebration Modal -->
   <div class="celebration-modal" id="celebrationModal">
     <div class="celebration-content">
@@ -810,7 +824,7 @@
   <script src="clear-auth.js"></script>
 
   <!-- Configuration -->
-  <script src="config.js"></script>
+  <script src="config.js" onerror="console.warn('config.js not found, using fallback configuration')"></script>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
@@ -827,7 +841,7 @@
     })();
 
     // Firebase config loading with safe fallbacks
-    // Priority: APP_CONFIG -> localStorage('firebaseConfig') -> prompt user
+    // Priority: APP_CONFIG -> localStorage('firebaseConfig') -> fallback config
     function loadFirebaseConfig() {
       // 1) From APP_CONFIG if provided
       if (window && window.APP_CONFIG && window.APP_CONFIG.FIREBASE_CONFIG && window.APP_CONFIG.FIREBASE_CONFIG.apiKey) {
@@ -852,7 +866,13 @@
           }
         }
       } catch (e) { }
-      throw new Error('Firebase configuration not found. Please check your config.js file or provide configuration.');
+      console.error('Firebase configuration not found. Please check your config.js file or provide configuration.');
+      // Return a fallback config to prevent page from breaking
+      return {
+        apiKey: "demo-key",
+        authDomain: "demo.firebaseapp.com",
+        projectId: "demo-project"
+      };
     }
 
     // Celebration Modal Functions
@@ -905,10 +925,34 @@
       }, 300);
     }
 
-    const firebaseConfig = loadFirebaseConfig();
-    try { firebase.initializeApp(firebaseConfig); } catch (e) { }
-    const auth = firebase.auth();
-    const db = firebase.firestore();
+    let firebaseConfig, auth, db;
+    
+    console.log('Initializing login page...');
+    console.log('APP_CONFIG available:', !!window.APP_CONFIG);
+    
+    try {
+      firebaseConfig = loadFirebaseConfig();
+      console.log('Firebase config loaded:', !!firebaseConfig.apiKey);
+      firebase.initializeApp(firebaseConfig);
+      auth = firebase.auth();
+      db = firebase.firestore();
+      console.log('Firebase initialized successfully');
+    } catch (e) {
+      console.error('Firebase initialization failed:', e);
+      // Firebase failed to initialize, we'll use a mock approach
+      auth = null;
+      db = null;
+      // Show a warning but don't break the page
+      console.warn('Firebase not available, some features may not work properly');
+    }
+    
+    console.log('Login page initialization complete');
+    
+    // Remove any loading indicators
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) {
+      loadingEl.remove();
+    }
 
     // Auth persistence with fallbacks when web storage is blocked/unavailable
     (async function setPersistenceWithFallback() {
@@ -959,7 +1003,8 @@
     }
 
     // Handle redirect result for Google sign-in
-    auth.getRedirectResult().then(async (result) => {
+    if (auth) {
+      auth.getRedirectResult().then(async (result) => {
       if (result.credential) {
         // User signed in via redirect
         try {
@@ -986,15 +1031,18 @@
         setTimeout(() => errorMessage.classList.remove('show'), 3000);
       }
     });
+    }
 
     // Optional: react to auth state (hook for redirect)
-    auth.onAuthStateChanged(async (user) => {
+    if (auth) {
+      auth.onAuthStateChanged(async (user) => {
       if (user) {
         try { await ensureUserDoc(user, 'auth_state'); } catch (e) { }
         // You can redirect after login if desired:
         // window.location.href = '/';
       }
     });
+    }
 
     const pupils = document.querySelectorAll('.pupil');
     const mouths = document.querySelectorAll('.mouth');
@@ -1142,6 +1190,14 @@
     forgotPasswordLink.addEventListener('click', async () => {
       const email = emailInput.value || prompt('Enter your email to reset password:');
       if (!email) return;
+      
+      if (!auth) {
+        errorMessage.textContent = 'Authentication service not available';
+        errorMessage.classList.add('show');
+        setTimeout(() => errorMessage.classList.remove('show'), 3000);
+        return;
+      }
+      
       try {
         await auth.sendPasswordResetEmail(email);
         alert('Password reset email sent!');
@@ -1172,6 +1228,10 @@
       }
       setBusy(document.getElementById('loginBtn'), true);
       try {
+        if (!auth) {
+          throw new Error('Authentication service not available');
+        }
+        
         // Sign in with Firebase
         const userCredential = await auth.signInWithEmailAndPassword(email, pass);
         const user = userCredential.user;
@@ -1180,7 +1240,7 @@
         const idToken = await user.getIdToken();
 
         // Verify with backend
-        const backendUrl = `${window.location.protocol}//${window.location.hostname}:8000`;
+        const backendUrl = window.APP_CONFIG?.BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
         const response = await fetch(`${backendUrl}/api/auth/firebase/verify`, {
           method: 'POST',
           headers: {
@@ -1274,6 +1334,10 @@
 
       setBusy(document.getElementById('signupBtn'), true);
       try {
+        if (!auth) {
+          throw new Error('Authentication service not available');
+        }
+        
         // Create Firebase user
         const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
         const user = userCredential.user;
@@ -1287,7 +1351,7 @@
         const idToken = await user.getIdToken();
 
         // Create user in backend with user type
-        const backendUrl = `${window.location.protocol}//${window.location.hostname}:8000`;
+        const backendUrl = window.APP_CONFIG?.BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
         const response = await fetch(`${backendUrl}/api/auth/firebase/signup`, {
           method: 'POST',
           headers: {
@@ -1364,6 +1428,10 @@
       });
 
       try {
+        if (!auth) {
+          throw new Error('Authentication service not available');
+        }
+        
         const result = await auth.signInWithPopup(provider);
         const user = result.user;
 
@@ -1371,7 +1439,7 @@
         const idToken = await user.getIdToken();
 
         // Verify with backend
-        const backendUrl = `${window.location.protocol}//${window.location.hostname}:8000`;
+        const backendUrl = window.APP_CONFIG?.BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
         const response = await fetch(`${backendUrl}/api/auth/firebase/verify`, {
           method: 'POST',
           headers: {
