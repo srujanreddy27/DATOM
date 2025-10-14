@@ -7,7 +7,8 @@
   <title>Cute Login Page</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    rel="stylesheet">
   <style>
     :root {
       --bg-top: #14b8a6;
@@ -30,7 +31,8 @@
       background:
         radial-gradient(ellipse at center, rgba(6, 182, 212, 0.1) 0%, rgba(3, 7, 18, 0.8) 70%),
         radial-gradient(ellipse at center, rgba(20, 184, 166, 0.05) 0%, rgba(3, 7, 18, 0.9) 100%),
-        #030712; /* app background base */
+        #030712;
+      /* app background base */
       font-family: 'Inter', sans-serif;
       overflow: hidden;
       color: #f8fafc;
@@ -100,12 +102,15 @@
         transform: translateY(100vh) rotate(0deg);
         opacity: 0;
       }
+
       10% {
         opacity: 0.6;
       }
+
       90% {
         opacity: 0.6;
       }
+
       100% {
         transform: translateY(-100px) rotate(360deg);
         opacity: 0;
@@ -323,6 +328,7 @@
         opacity: 0;
         transform: translateY(30px);
       }
+
       to {
         opacity: 1;
         transform: translateY(0);
@@ -481,9 +487,12 @@
     }
 
     @keyframes pulse {
-      0%, 100% {
+
+      0%,
+      100% {
         opacity: 1;
       }
+
       50% {
         opacity: 0.7;
         transform: scale(1.1);
@@ -519,6 +528,114 @@
     ::selection {
       background: rgba(20, 184, 166, 0.3);
       color: #f8fafc;
+    }
+
+    /* Enhanced Loading Overlay */
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(3, 7, 18, 0.95);
+      backdrop-filter: blur(10px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .loading-box {
+      background: linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%);
+      border: 1px solid rgba(20, 184, 166, 0.3);
+      border-radius: 20px;
+      padding: 40px;
+      text-align: center;
+      backdrop-filter: blur(20px);
+      box-shadow:
+        0 20px 40px rgba(0, 0, 0, 0.3),
+        0 0 30px rgba(20, 184, 166, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      min-width: 300px;
+      animation: slideUp 0.5s ease;
+    }
+
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(20, 184, 166, 0.3);
+      border-top: 3px solid #14b8a6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    .loading-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #14b8a6;
+      margin-bottom: 10px;
+      text-shadow: 0 0 10px rgba(20, 184, 166, 0.3);
+    }
+
+    .loading-message {
+      font-size: 16px;
+      color: #f8fafc;
+      margin-bottom: 20px;
+      opacity: 0.9;
+    }
+
+    .loading-progress {
+      width: 100%;
+      height: 4px;
+      background: rgba(20, 184, 166, 0.2);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 15px;
+    }
+
+    .loading-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #14b8a6, #06b6d4);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.3s ease;
+      animation: progressPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.9);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes progressPulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 5px rgba(20, 184, 166, 0.3);
+      }
+
+      50% {
+        box-shadow: 0 0 20px rgba(20, 184, 166, 0.6);
+      }
     }
 
     /* Celebration Modal */
@@ -610,30 +727,106 @@
       animation: confetti-fall 3s ease-in-out forwards;
     }
 
-    .confetti:nth-child(1) { left: 10%; animation-delay: 0s; background: #ff6b6b; }
-    .confetti:nth-child(2) { left: 20%; animation-delay: 0.2s; background: #4ecdc4; }
-    .confetti:nth-child(3) { left: 30%; animation-delay: 0.4s; background: #ffe66d; }
-    .confetti:nth-child(4) { left: 40%; animation-delay: 0.6s; background: #ff8b94; }
-    .confetti:nth-child(5) { left: 50%; animation-delay: 0.8s; background: #a8e6cf; }
-    .confetti:nth-child(6) { left: 60%; animation-delay: 1s; background: #dcedc8; }
-    .confetti:nth-child(7) { left: 70%; animation-delay: 1.2s; background: #ffd3a5; }
-    .confetti:nth-child(8) { left: 80%; animation-delay: 1.4s; background: #a8e6cf; }
-    .confetti:nth-child(9) { left: 90%; animation-delay: 1.6s; background: #ffaaa5; }
-    .confetti:nth-child(10) { left: 95%; animation-delay: 1.8s; background: #ffe66d; }
-    .confetti:nth-child(11) { left: 15%; animation-delay: 0.3s; background: #ff9ff3; }
-    .confetti:nth-child(12) { left: 35%; animation-delay: 0.7s; background: #54a0ff; }
-    .confetti:nth-child(13) { left: 55%; animation-delay: 1.1s; background: #5f27cd; }
-    .confetti:nth-child(14) { left: 75%; animation-delay: 1.5s; background: #00d2d3; }
-    .confetti:nth-child(15) { left: 85%; animation-delay: 1.9s; background: #ff9f43; }
+    .confetti:nth-child(1) {
+      left: 10%;
+      animation-delay: 0s;
+      background: #ff6b6b;
+    }
+
+    .confetti:nth-child(2) {
+      left: 20%;
+      animation-delay: 0.2s;
+      background: #4ecdc4;
+    }
+
+    .confetti:nth-child(3) {
+      left: 30%;
+      animation-delay: 0.4s;
+      background: #ffe66d;
+    }
+
+    .confetti:nth-child(4) {
+      left: 40%;
+      animation-delay: 0.6s;
+      background: #ff8b94;
+    }
+
+    .confetti:nth-child(5) {
+      left: 50%;
+      animation-delay: 0.8s;
+      background: #a8e6cf;
+    }
+
+    .confetti:nth-child(6) {
+      left: 60%;
+      animation-delay: 1s;
+      background: #dcedc8;
+    }
+
+    .confetti:nth-child(7) {
+      left: 70%;
+      animation-delay: 1.2s;
+      background: #ffd3a5;
+    }
+
+    .confetti:nth-child(8) {
+      left: 80%;
+      animation-delay: 1.4s;
+      background: #a8e6cf;
+    }
+
+    .confetti:nth-child(9) {
+      left: 90%;
+      animation-delay: 1.6s;
+      background: #ffaaa5;
+    }
+
+    .confetti:nth-child(10) {
+      left: 95%;
+      animation-delay: 1.8s;
+      background: #ffe66d;
+    }
+
+    .confetti:nth-child(11) {
+      left: 15%;
+      animation-delay: 0.3s;
+      background: #ff9ff3;
+    }
+
+    .confetti:nth-child(12) {
+      left: 35%;
+      animation-delay: 0.7s;
+      background: #54a0ff;
+    }
+
+    .confetti:nth-child(13) {
+      left: 55%;
+      animation-delay: 1.1s;
+      background: #5f27cd;
+    }
+
+    .confetti:nth-child(14) {
+      left: 75%;
+      animation-delay: 1.5s;
+      background: #00d2d3;
+    }
+
+    .confetti:nth-child(15) {
+      left: 85%;
+      animation-delay: 1.9s;
+      background: #ff9f43;
+    }
 
     @keyframes confetti-fall {
       0% {
         transform: translateY(-100vh) rotate(0deg);
         opacity: 1;
       }
+
       70% {
         opacity: 1;
       }
+
       100% {
         transform: translateY(100vh) rotate(720deg);
         opacity: 0;
@@ -641,12 +834,19 @@
     }
 
     @keyframes bounce {
-      0%, 20%, 50%, 80%, 100% {
+
+      0%,
+      20%,
+      50%,
+      80%,
+      100% {
         transform: translateY(0);
       }
+
       40% {
         transform: translateY(-10px);
       }
+
       60% {
         transform: translateY(-5px);
       }
@@ -655,17 +855,26 @@
 </head>
 
 <body>
-  <!-- Loading Indicator -->
-  <div id="loading" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #14b8a6; font-size: 18px; z-index: 9999;">
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <div style="width: 20px; height: 20px; border: 2px solid #14b8a6; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-      Loading...
+  <!-- Enhanced Loading Indicator -->
+  <div id="loading" class="loading-overlay" style="display: none;">
+    <div class="loading-box">
+      <div class="loading-spinner"></div>
+      <div class="loading-title">DecentraTask</div>
+      <div class="loading-message" id="loadingText">Signing in...</div>
+      <div class="loading-progress">
+        <div class="loading-progress-bar" id="progressBar"></div>
+      </div>
     </div>
   </div>
   <style>
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
   </style>
 
@@ -894,64 +1103,105 @@
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
-        
+
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
-        
+
         oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
         oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.1);
-        
+
         gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-        
+
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + 0.1);
       } catch (e) {
         // Ignore audio errors - not critical
       }
 
-      // Auto close after 4 seconds and redirect
+      // Auto close after 2 seconds and redirect for faster UX
       setTimeout(() => {
         closeCelebration();
-      }, 4000);
+      }, 2000);
     }
 
     function closeCelebration() {
       const modal = document.getElementById('celebrationModal');
       modal.classList.remove('show');
-      // Redirect to main React app after closing celebration
-      setTimeout(() => {
-        window.location.href = '/';
-      }, 300);
+      // Redirect to main React app immediately for faster UX
+      window.location.href = '/';
     }
 
     let firebaseConfig, auth, db;
-    
-    console.log('Initializing login page...');
-    console.log('APP_CONFIG available:', !!window.APP_CONFIG);
-    
+
+    // Optimized initialization - faster startup
     try {
       firebaseConfig = loadFirebaseConfig();
-      console.log('Firebase config loaded:', !!firebaseConfig.apiKey);
       firebase.initializeApp(firebaseConfig);
       auth = firebase.auth();
       db = firebase.firestore();
-      console.log('Firebase initialized successfully');
+
+      // Preload auth state for faster subsequent operations
+      auth.onAuthStateChanged(() => { }, () => { });
+
     } catch (e) {
       console.error('Firebase initialization failed:', e);
-      // Firebase failed to initialize, we'll use a mock approach
       auth = null;
       db = null;
-      // Show a warning but don't break the page
-      console.warn('Firebase not available, some features may not work properly');
     }
-    
-    console.log('Login page initialization complete');
-    
-    // Remove any loading indicators
-    const loadingEl = document.getElementById('loading');
-    if (loadingEl) {
-      loadingEl.remove();
+
+    // Initialize the app after DOM is ready
+    document.addEventListener('DOMContentLoaded', function () {
+      initializeApp();
+    });
+
+    // If DOM is already ready, initialize immediately
+    if (document.readyState === 'loading') {
+      // DOM is still loading, wait for DOMContentLoaded
+    } else {
+      // DOM is already ready
+      initializeApp();
+    }
+
+    async function initializeApp() {
+      console.log('Initializing app...');
+
+      // Clean up any old redirect states since we're using popup now
+      localStorage.removeItem('auth_redirect_state');
+
+      // Check if user is already authenticated
+      auth.onAuthStateChanged(async (user) => {
+        console.log('Auth state changed. User:', user ? user.uid : 'null');
+
+        if (user) {
+          console.log('User already authenticated:', user.uid, user.email);
+
+          try {
+            // Get and store the Firebase token for the main app to use
+            const idToken = await user.getIdToken(false); // Use cached token to avoid network issues
+            localStorage.setItem('firebase_token', idToken);
+            console.log('Firebase token stored for main app');
+
+            // User is already signed in, redirect to main app after a short delay
+            console.log('User already signed in, redirecting to main app...');
+            // User is already signed in, redirect immediately
+            window.location.href = '/';
+          } catch (error) {
+            console.error('Error getting token for existing user:', error);
+            // If we can't get the token, still redirect but user might need to sign in again
+            // Redirect to main app
+            window.location.href = '/';
+          }
+        } else {
+          console.log('No authenticated user found');
+        }
+      });
+
+      // Remove loading indicators
+      const loadingEl = document.getElementById('loading');
+      if (loadingEl) {
+        loadingEl.style.display = 'none';
+      }
     }
 
     // Auth persistence with fallbacks when web storage is blocked/unavailable
@@ -1005,43 +1255,43 @@
     // Handle redirect result for Google sign-in
     if (auth) {
       auth.getRedirectResult().then(async (result) => {
-      if (result.credential) {
-        // User signed in via redirect
-        try {
-          await ensureUserDoc(result.user, 'google_redirect');
-          alert('Signed in with Google!');
-        } catch (e) {
-          console.error('Error handling redirect result:', e);
+        if (result.credential) {
+          // User signed in via redirect
+          try {
+            await ensureUserDoc(result.user, 'google_redirect');
+            alert('Signed in with Google!');
+          } catch (e) {
+            console.error('Error handling redirect result:', e);
+          }
         }
-      }
-    }).catch((error) => {
-      console.error('Redirect result error:', error);
-      const errorCode = error.code;
-      const errorMessage = error.message;
+      }).catch((error) => {
+        console.error('Redirect result error:', error);
+        const errorCode = error.code;
+        const errorMessage = error.message;
 
-      // Show error message based on current form
-      const msg = errorMessage || 'Google sign-in failed';
-      if (!signupForm.classList.contains('hidden')) {
-        signupErrorMessage.textContent = msg;
-        signupErrorMessage.classList.add('show');
-        setTimeout(() => signupErrorMessage.classList.remove('show'), 3000);
-      } else {
-        errorMessage.textContent = msg;
-        errorMessage.classList.add('show');
-        setTimeout(() => errorMessage.classList.remove('show'), 3000);
-      }
-    });
+        // Show error message based on current form
+        const msg = errorMessage || 'Google sign-in failed';
+        if (!signupForm.classList.contains('hidden')) {
+          signupErrorMessage.textContent = msg;
+          signupErrorMessage.classList.add('show');
+          setTimeout(() => signupErrorMessage.classList.remove('show'), 3000);
+        } else {
+          errorMessage.textContent = msg;
+          errorMessage.classList.add('show');
+          setTimeout(() => errorMessage.classList.remove('show'), 3000);
+        }
+      });
     }
 
     // Optional: react to auth state (hook for redirect)
     if (auth) {
       auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        try { await ensureUserDoc(user, 'auth_state'); } catch (e) { }
-        // You can redirect after login if desired:
-        // window.location.href = '/';
-      }
-    });
+        if (user) {
+          try { await ensureUserDoc(user, 'auth_state'); } catch (e) { }
+          // You can redirect after login if desired:
+          // window.location.href = '/';
+        }
+      });
     }
 
     const pupils = document.querySelectorAll('.pupil');
@@ -1190,14 +1440,14 @@
     forgotPasswordLink.addEventListener('click', async () => {
       const email = emailInput.value || prompt('Enter your email to reset password:');
       if (!email) return;
-      
+
       if (!auth) {
         errorMessage.textContent = 'Authentication service not available';
         errorMessage.classList.add('show');
         setTimeout(() => errorMessage.classList.remove('show'), 3000);
         return;
       }
-      
+
       try {
         await auth.sendPasswordResetEmail(email);
         alert('Password reset email sent!');
@@ -1231,7 +1481,7 @@
         if (!auth) {
           throw new Error('Authentication service not available');
         }
-        
+
         // Sign in with Firebase
         const userCredential = await auth.signInWithEmailAndPassword(email, pass);
         const user = userCredential.user;
@@ -1259,8 +1509,11 @@
         // Store the Firebase ID token for future requests
         localStorage.setItem('firebase_token', idToken);
 
-        // Show celebration
-        showCelebration('Welcome Back!', 'Login successful! Redirecting you now...', '🎉');
+        // Set flag for welcome celebration in main app
+        localStorage.setItem('show_welcome_celebration', 'true');
+
+        // Redirect immediately without showing celebration here
+        window.location.href = '/';
       } catch (err) {
         let errorMsg = 'Login failed';
         if (err.code === 'auth/user-not-found') {
@@ -1337,7 +1590,7 @@
         if (!auth) {
           throw new Error('Authentication service not available');
         }
-        
+
         // Create Firebase user
         const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
         const user = userCredential.user;
@@ -1376,8 +1629,11 @@
         // Store the Firebase ID token for future requests
         localStorage.setItem('firebase_token', idToken);
 
-        // Show celebration
-        showCelebration('Account Created!', 'Welcome! Your account has been created successfully.', '✨');
+        // Set flag for welcome celebration in main app
+        localStorage.setItem('show_welcome_celebration', 'true');
+
+        // Redirect immediately without showing celebration here
+        window.location.href = '/';
       } catch (err) {
         let errorMsg = 'Signup failed';
         if (err.code === 'auth/email-already-in-use') {
@@ -1415,84 +1671,183 @@
       }
     });
 
-    // Google sign-in with backend integration
+    // Fast Google sign-in with redirect (properly handled)
     async function googleSignIn() {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      provider.addScope('email');
-      provider.addScope('profile');
-
-      // Show loading state on faces
-      mouths.forEach(mouth => {
-        mouth.classList.remove('flat', 'smile', 'sad');
-        mouth.classList.add('smile');
-      });
+      const loadingEl = document.getElementById('loading');
+      const loadingText = document.getElementById('loadingText');
+      const progressBar = document.getElementById('progressBar');
 
       try {
+        // Show enhanced loading immediately
+        loadingEl.style.display = 'flex';
+        loadingText.textContent = 'Initializing...';
+        progressBar.style.width = '10%';
+
+        // Show loading state on faces
+        mouths.forEach(mouth => {
+          mouth.classList.remove('flat', 'smile', 'sad');
+          mouth.classList.add('smile');
+        });
+
         if (!auth) {
           throw new Error('Authentication service not available');
         }
-        
+
+        // Check if user is already signed in (fastest path)
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          try {
+            loadingText.textContent = 'Using existing session...';
+            progressBar.style.width = '50%';
+
+            const idToken = await currentUser.getIdToken(false); // Use cached token
+            await verifyWithBackend(idToken, loadingText, progressBar, loadingEl);
+            return;
+          } catch (error) {
+            console.log('Existing session failed, proceeding with new sign-in:', error);
+            // Continue with new sign-in if existing session fails
+          }
+        }
+
+
+
+        // Optimize provider setup for speed
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.addScope('email');
+        provider.addScope('profile');
+        // Use optimized sign-in flow
+        provider.setCustomParameters({
+          prompt: 'select_account',
+          include_granted_scopes: 'true'
+        });
+
+        loadingText.textContent = 'Opening Google Sign-in...';
+        progressBar.style.width = '30%';
+
+        // Use signInWithPopup for local development (works better with localhost)
         const result = await auth.signInWithPopup(provider);
         const user = result.user;
 
-        // Get Firebase ID token
-        const idToken = await user.getIdToken();
+        loadingText.textContent = 'Authentication successful...';
+        progressBar.style.width = '60%';
 
-        // Verify with backend
+        // Get Firebase ID token (force refresh for new sign-in)
+        const idToken = await user.getIdToken(true);
+
+        await verifyWithBackend(idToken, loadingText, progressBar, loadingEl);
+
+      } catch (err) {
+        console.error('Google sign-in error:', err);
+        handleSignInError(err, loadingEl, loadingText);
+      }
+    }
+
+
+
+    // Separate function for backend verification
+    async function verifyWithBackend(idToken, loadingText, progressBar, loadingEl) {
+      console.log('verifyWithBackend called with token:', idToken ? idToken.substring(0, 20) + '...' : 'null');
+
+      try {
+        if (loadingText) loadingText.textContent = 'Verifying credentials...';
+        if (progressBar) progressBar.style.width = '70%';
+
         const backendUrl = window.APP_CONFIG?.BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
+        console.log('Backend URL:', backendUrl);
+
+        // Use faster fetch with optimized timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // Reduced to 3 seconds with backend caching
+
+        console.log('Sending request to backend...');
         const response = await fetch(`${backendUrl}/api/auth/firebase/verify`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${idToken}`,
             'Content-Type': 'application/json'
-          }
+          },
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
+        console.log('Backend response status:', response.status);
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
+          console.error('Backend error:', errorData);
           throw new Error(errorData.detail || `Server error: ${response.status}`);
         }
 
         const data = await response.json();
-        console.log('Authentication successful:', data);
+        console.log('Backend verification successful:', data);
 
         // Store the Firebase ID token for future requests
         localStorage.setItem('firebase_token', idToken);
 
-        // Show celebration
-        showCelebration('Welcome!', 'Successfully signed in with Google!', '🔵');
+        if (loadingText) loadingText.textContent = 'Success! Redirecting...';
+        if (progressBar) progressBar.style.width = '100%';
+
+        // Hide loading faster
+        setTimeout(() => {
+          if (loadingEl) loadingEl.style.display = 'none';
+        }, 300);
+
+        console.log('Authentication successful, redirecting...');
+        // Set flag for welcome celebration in main app
+        localStorage.setItem('show_welcome_celebration', 'true');
+
+        // Redirect immediately without showing celebration here
+        window.location.href = '/';
 
       } catch (err) {
-        console.error('Google sign-in error:', err);
-        const code = err && err.code ? String(err.code) : '';
-        let errorMessage = err && err.message ? err.message : 'Google sign-in failed';
-
-        // Handle specific error cases
-        if (code === 'auth/popup-closed-by-user') {
-          errorMessage = 'Sign in was cancelled. Please try again.';
-        } else if (code === 'auth/popup-blocked') {
-          errorMessage = 'Popup was blocked. Please allow popups and try again.';
-        } else if (code === 'auth/network-request-failed') {
-          errorMessage = 'Network error. Please check your connection and try again.';
-        }
-
-        showErrorMessage(errorMessage);
-
-        // Show sad faces on error
-        mouths.forEach(mouth => {
-          mouth.classList.remove('flat', 'smile', 'sad');
-          mouth.classList.add('sad');
-        });
-        tears.forEach(tear => tear.classList.add('show'));
-
-        setTimeout(() => {
-          mouths.forEach(mouth => {
-            mouth.classList.remove('sad');
-            mouth.classList.add('flat');
-          });
-          tears.forEach(tear => tear.classList.remove('show'));
-        }, 3000);
+        throw err; // Re-throw to be handled by caller
       }
+    }
+
+
+
+    // Centralized error handling
+    function handleSignInError(err, loadingEl, loadingText) {
+      // Hide loading
+      if (loadingEl) {
+        loadingEl.style.display = 'none';
+      }
+
+      const code = err && err.code ? String(err.code) : '';
+      let errorMessage = err && err.message ? err.message : 'Google sign-in failed';
+
+      // Handle specific error cases for redirect-based auth
+      if (code === 'auth/cancelled-popup-request') {
+        errorMessage = 'Sign in was cancelled. Please try again.';
+      } else if (code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (code === 'auth/redirect-cancelled-by-user') {
+        errorMessage = 'Sign in was cancelled. Please try again.';
+      } else if (code === 'auth/redirect-operation-pending') {
+        errorMessage = 'Another sign-in is in progress. Please wait.';
+      } else if (err.name === 'AbortError') {
+        errorMessage = 'Sign in timed out. Please try again.';
+      } else if (code === 'auth/no-auth-event') {
+        // This is normal for redirect, don't show as error
+        return;
+      }
+
+      showErrorMessage(errorMessage);
+
+      // Show sad faces on error
+      mouths.forEach(mouth => {
+        mouth.classList.remove('flat', 'smile', 'sad');
+        mouth.classList.add('sad');
+      });
+      tears.forEach(tear => tear.classList.add('show'));
+
+      setTimeout(() => {
+        mouths.forEach(mouth => {
+          mouth.classList.remove('sad');
+          mouth.classList.add('flat');
+        });
+        tears.forEach(tear => tear.classList.remove('show'));
+      }, 3000);
     }
 
 
@@ -1510,17 +1865,30 @@
       }
     }
 
-    // Clear Firebase auth state on page load to prevent auto-login
+
+
+    // Only clear auth state if explicitly requested (e.g., after logout)
     window.addEventListener('load', async () => {
-      try {
-        // Sign out any existing Firebase user
-        await auth.signOut();
-        // Clear all tokens
-        localStorage.removeItem('firebase_token');
-        localStorage.removeItem('access_token');
-        console.log('Cleared authentication state');
-      } catch (e) {
-        console.log('No existing auth state to clear');
+      const urlParams = new URLSearchParams(window.location.search);
+      const shouldClear = urlParams.has('clear_auth') ||
+        localStorage.getItem('force_clear_auth') === 'true';
+
+      if (shouldClear) {
+        try {
+          // Sign out any existing Firebase user
+          await auth.signOut();
+          // Clear all tokens
+          localStorage.removeItem('firebase_token');
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('cached_user_data');
+          localStorage.removeItem('user_cache_time');
+          localStorage.removeItem('force_clear_auth');
+          console.log('Cleared authentication state');
+        } catch (e) {
+          console.log('No existing auth state to clear');
+        }
+      } else {
+        console.log('Preserving existing authentication state');
       }
     });
 

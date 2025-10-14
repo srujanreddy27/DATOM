@@ -18,6 +18,8 @@ node_modules/
 !.yarn/releases
 !.yarn/versions
 
+config.js
+
 # Testing
 /coverage
 

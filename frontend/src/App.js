@@ -2,8 +2,12 @@ import React, { useState, useEffect } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Link } from "react-router-dom";
 import axios from "axios";
-import WelcomeGreeting from "./components/WelcomeGreeting";
+
 import LoadingSpinner from "./components/LoadingSpinner";
+import TaskCard from "./components/TaskCard";
+import SubmissionModal from "./components/SubmissionModal";
+import MySubmissions from "./components/MySubmissions";
+import TaskSubmissions from "./components/TaskSubmissions";
 import { ethers } from "ethers";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
@@ -70,7 +74,7 @@ const mockTasks = [
     client: "TechCorp AI",
     clientRating: 4.8,
     status: "open",
-    applicants: 12,
+    submissions: 12,
     skills: ["Photography", "Data Collection", "AI/ML"],
     escrowStatus: "pending"
   },
@@ -84,7 +88,7 @@ const mockTasks = [
     client: "DeFi Solutions",
     clientRating: 4.9,
     status: "open",
-    applicants: 8,
+    submissions: 8,
     skills: ["Solidity", "Security", "DeFi"],
     escrowStatus: "pending"
   },
@@ -98,7 +102,7 @@ const mockTasks = [
     client: "StartupX",
     clientRating: 4.6,
     status: "in_progress",
-    applicants: 15,
+    submissions: 15,
     skills: ["UI/UX", "Figma", "Mobile Design"],
     escrowStatus: "funded"
   },
@@ -112,7 +116,7 @@ const mockTasks = [
     client: "DevStudio",
     clientRating: 4.7,
     status: "open",
-    applicants: 9,
+    submissions: 9,
     skills: ["React", "TypeScript", "Storybook"],
     escrowStatus: "pending"
   },
@@ -126,7 +130,7 @@ const mockTasks = [
     client: "CryptoArt",
     clientRating: 4.9,
     status: "open",
-    applicants: 6,
+    submissions: 6,
     skills: ["Solidity", "NFT", "Web3"],
     escrowStatus: "pending"
   },
@@ -140,7 +144,7 @@ const mockTasks = [
     client: "FinTech Corp",
     clientRating: 4.5,
     status: "open",
-    applicants: 14,
+    submissions: 14,
     skills: ["D3.js", "React", "Data Visualization"],
     escrowStatus: "pending"
   }
@@ -171,7 +175,7 @@ const mapTaskFromApi = (apiTask) => ({
   client: apiTask.client,
   clientRating: apiTask.client_rating ?? 4.5,
   status: apiTask.status,
-  applicants: apiTask.applicants ?? 0,
+  submissions: apiTask.submissions ?? 0,
   skills: apiTask.skills ?? [],
   escrowStatus: apiTask.escrow_status ?? "pending",
 });
@@ -189,66 +193,158 @@ const categories = [
   "Video Editing"
 ];
 
-// Navigation Component
-const Navigation = () => {
+// Navigation Component - Memoized for performance
+const Navigation = React.memo(() => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [account, setAccount] = useState(null);
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [showWalletDialog, setShowWalletDialog] = useState(false);
-  const [availableAccounts, setAvailableAccounts] = useState([]);
+
+
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationMessage, setCelebrationMessage] = useState('');
   const [showLoginCelebration, setShowLoginCelebration] = useState(false);
 
-  // Check authentication status on component mount
+  // Close dropdown when clicking outside
   useEffect(() => {
-    const checkAuthStatus = async () => {
-      try {
-        // Clean up old tokens first
-        localStorage.removeItem('access_token');
-        
-        const firebaseToken = localStorage.getItem('firebase_token');
-        if (firebaseToken) {
-          const response = await axios.post(`${BACKEND_URL}/api/auth/firebase/verify`, {}, {
-            headers: { 'Authorization': `Bearer ${firebaseToken}` }
-          });
-          const userData = response.data.user;
-          setUser(userData);
-          
-          // Show login celebration for new sessions
-          const lastLogin = localStorage.getItem('last_login_time');
-          const now = Date.now();
-          const fiveMinutesAgo = now - (5 * 60 * 1000);
-          
-          if (!lastLogin || parseInt(lastLogin) < fiveMinutesAgo) {
-            setShowLoginCelebration(true);
-            localStorage.setItem('last_login_time', now.toString());
-            // Auto-hide login celebration after 4 seconds
-            setTimeout(() => setShowLoginCelebration(false), 4000);
-          }
-        }
-      } catch (error) {
-        console.error('Authentication check failed:', error);
-        // Token is invalid, remove all tokens
-        localStorage.removeItem('firebase_token');
-        localStorage.removeItem('access_token');
-        setUser(null);
-      } finally {
-        setIsLoading(false);
+    const handleClickOutside = (event) => {
+      if (isUserDropdownOpen && !event.target.closest('.user-dropdown-container')) {
+        setIsUserDropdownOpen(false);
       }
     };
 
-    checkAuthStatus();
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isUserDropdownOpen]);
+
+  // Listen for user type changes from other components
+  useEffect(() => {
+    const handleUserTypeChange = (event) => {
+      if (event.key === 'user_type_changed') {
+        // Refresh user data when user type changes (skip cache)
+        checkAuthStatus(true);
+      }
+    };
+
+    window.addEventListener('storage', handleUserTypeChange);
+    return () => window.removeEventListener('storage', handleUserTypeChange);
   }, []);
 
+  // Extract checkAuthStatus function so it can be reused
+  const checkAuthStatus = async (skipCache = false) => {
+    try {
+      // Clean up old tokens first
+      localStorage.removeItem('access_token');
+
+      const firebaseToken = localStorage.getItem('firebase_token');
+      if (firebaseToken) {
+        // Check cache first for faster loading (unless explicitly skipping)
+        if (!skipCache) {
+          const cachedUser = localStorage.getItem('cached_user_data');
+          const cacheTime = localStorage.getItem('user_cache_time');
+          const now = Date.now();
+
+          // Use cache if it's less than 5 minutes old
+          if (cachedUser && cacheTime && (now - parseInt(cacheTime)) < 300000) {
+            try {
+              const userData = JSON.parse(cachedUser);
+              setUser(userData);
+              setIsLoading(false);
+              return; // Skip API call
+            } catch (e) {
+              // Invalid cache, continue with API call
+            }
+          }
+        }
+
+        const response = await axios.post(`${BACKEND_URL}/api/auth/firebase/verify`, {}, {
+          headers: { 'Authorization': `Bearer ${firebaseToken}` }
+        });
+        const userData = response.data.user;
+        setUser(userData);
+
+        // Cache user data for faster subsequent loads
+        localStorage.setItem('cached_user_data', JSON.stringify(userData));
+        localStorage.setItem('user_cache_time', Date.now().toString());
+
+        // Auto-connect wallet when user is authenticated (optimized)
+        if (window.ethereum && !account) {
+          try {
+            // First check if accounts are already connected (faster)
+            const accounts = await window.ethereum.request({ method: "eth_accounts" });
+            if (accounts.length > 0) {
+              setAccount(accounts[0]);
+
+              // Listen for account changes
+              window.ethereum.on('accountsChanged', (accounts) => {
+                if (accounts.length > 0) {
+                  setAccount(accounts[0]);
+                } else {
+                  setAccount(null);
+                }
+              });
+
+              // Listen for network changes
+              window.ethereum.on('chainChanged', () => {
+                window.location.reload();
+              });
+            }
+          } catch (error) {
+            console.log('Auto wallet connection failed:', error);
+          }
+        }
+
+        // Show login celebration for new sessions (but only if explicitly requested)
+        const showWelcome = localStorage.getItem('show_welcome_celebration');
+        if (showWelcome === 'true') {
+          setShowLoginCelebration(true);
+          localStorage.removeItem('show_welcome_celebration');
+          // Auto-hide login celebration after 3 seconds
+          setTimeout(() => setShowLoginCelebration(false), 3000);
+        }
+      }
+    } catch (error) {
+      console.error('Authentication check failed:', error);
+      // Token is invalid, remove all tokens
+      localStorage.removeItem('firebase_token');
+      localStorage.removeItem('access_token');
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Check authentication status on component mount (optimized)
+  useEffect(() => {
+    checkAuthStatus();
+
+    // Cleanup function to remove event listeners
+    return () => {
+      if (window.ethereum) {
+        try {
+          window.ethereum.removeAllListeners('accountsChanged');
+          window.ethereum.removeAllListeners('chainChanged');
+        } catch (error) {
+          console.log('Error removing wallet event listeners:', error);
+        }
+      }
+    };
+  }, []); // Empty dependency array for mount-only effect
+
   const logout = async () => {
+    // Set flag to clear auth state on login page
+    localStorage.setItem('force_clear_auth', 'true');
+
     // Clear all tokens
     localStorage.removeItem('firebase_token');
     localStorage.removeItem('access_token');
     localStorage.removeItem('last_login_time');
-    
+    localStorage.removeItem('cached_user_data');
+    localStorage.removeItem('user_cache_time');
+
     // Sign out from Firebase
     try {
       // Import Firebase auth
@@ -257,10 +353,10 @@ const Navigation = () => {
     } catch (error) {
       console.error('Firebase signout error:', error);
     }
-    
+
     setUser(null);
-    // Redirect to login page
-    window.location.href = '/login.html';
+    // Redirect to login page with clear flag
+    window.location.href = '/login.html?clear_auth=true';
   };
 
   const connectWallet = async () => {
@@ -291,11 +387,8 @@ const Navigation = () => {
         }
       }
       const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-      if (accounts.length > 1) {
-        // Show dialog to select account
-        setAvailableAccounts(accounts);
-        setShowWalletDialog(true);
-      } else {
+      // Always connect to the first account automatically
+      if (accounts.length > 0) {
         setAccount(accounts[0]);
       }
     } catch (err) {
@@ -304,174 +397,318 @@ const Navigation = () => {
     }
   };
 
-  const selectWalletAccount = (selectedAccount) => {
-    setAccount(selectedAccount);
-    setShowWalletDialog(false);
-    setAvailableAccounts([]);
-  };
+
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
-        <div className="container mx-auto px-6">
-        <div className="flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center">
-              <Shield className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-white">DecentraTask</span>
-          </Link>
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-gray-950/95 backdrop-blur-lg border-b border-gray-800/50 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
 
-          <div className="hidden md:flex items-center space-x-8">
-            <Link to="/" className="text-gray-300 hover:text-teal-400 transition-colors">
-              Home
-            </Link>
-            <Link to="/tasks" className="text-gray-300 hover:text-teal-400 transition-colors">
-              Browse Tasks
-            </Link>
-            {isLoading ? (
-              <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-500"></div>
-                <span className="text-gray-400">Loading...</span>
+            {/* Logo Section */}
+            <Link to="/" className="flex items-center space-x-3 group">
+              <div className="w-9 h-9 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-teal-500/25 group-hover:scale-105 transition-all duration-300">
+                <Shield className="w-5 h-5 text-white group-hover:rotate-12 transition-transform duration-300" />
               </div>
-            ) : user ? (
-              <div className="flex items-center space-x-4">
-                <Link to="/profile" className="text-gray-300 hover:text-teal-400 transition-colors">
-                  Profile
-                </Link>
-                <span className="text-gray-300">Welcome, {user.username}</span>
-                <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800" onClick={logout}>
-                  Logout
-                </Button>
-              </div>
-            ) : (
-              <a href="/login.html" className="text-gray-300 hover:text-teal-400 transition-colors">
-                Login
-              </a>
-            )}
-            <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800" onClick={connectWallet}>
-              {account ? `${account.slice(0, 6)}...${account.slice(-4)}` : "Connect Wallet"}
-            </Button>
-            {user && user.user_type === 'client' && (
-              <Link to="/post-task">
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                  Post Task
-                </Button>
-              </Link>
-            )}
-            {user && user.user_type === 'freelancer' && (
-              <Link to="/tasks">
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                  Find Tasks
-                </Button>
-              </Link>
-            )}
-            {!user && !isLoading && (
-              <a href="/login.html">
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                  Get Started
-                </Button>
-              </a>
-            )}
-          </div>
+              <span className="text-xl font-bold text-white tracking-tight group-hover:text-teal-300 transition-colors duration-300">
+                DecentraTask
+              </span>
+            </Link>
 
-          <div className="md:hidden">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-white"
-            >
-              <Menu className="w-5 h-5" />
-            </Button>
-          </div>
-        </div>
-
-        {isMenuOpen && (
-          <div className="md:hidden py-4 border-t border-gray-800">
-            <div className="flex flex-col space-y-4">
-              <Link to="/" className="text-gray-300 hover:text-teal-400 transition-colors">
+            {/* Main Navigation - Desktop */}
+            <div className="hidden md:flex items-center space-x-1">
+              <Link
+                to="/"
+                className="flex items-center px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+              >
+                <Home className="w-4 h-4 mr-2" />
                 Home
               </Link>
-              <Link to="/tasks" className="text-gray-300 hover:text-teal-400 transition-colors">
+              <Link
+                to="/tasks"
+                className="flex items-center px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+              >
+                <Search className="w-4 h-4 mr-2" />
                 Browse Tasks
               </Link>
-              {isLoading ? (
-                <span className="text-gray-400">Loading...</span>
-              ) : user ? (
-                <div className="flex flex-col space-y-2">
-                  <Link to="/profile" className="text-gray-300 hover:text-teal-400 transition-colors">
-                    Profile
-                  </Link>
-                  <span className="text-gray-300">Welcome, {user.username}</span>
-                  <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800 self-start" onClick={logout}>
-                    Logout
-                  </Button>
-                </div>
-              ) : (
-                <a href="/login.html" className="text-gray-300 hover:text-teal-400 transition-colors">
-                  Login
-                </a>
+              {user && user.user_type === 'freelancer' && (
+                <Link
+                  to="/my-submissions"
+                  className="flex items-center px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                >
+                  <Briefcase className="w-4 h-4 mr-2" />
+                  My Submissions
+                </Link>
               )}
-              {user && user.user_type === 'client' && (
+            </div>
+
+            {/* Right Section - Desktop */}
+            <div className="hidden md:flex items-center space-x-4">
+
+              {/* Post Task Button - Always show when logged in */}
+              {user && (
                 <Link to="/post-task">
-                  <Button size="sm" className="bg-teal-600 hover:bg-teal-700 self-start">
+                  <Button size="sm" className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white shadow-lg hover:shadow-teal-500/25 transition-all duration-200">
+                    <Plus className="w-4 h-4 mr-2" />
                     Post Task
                   </Button>
                 </Link>
               )}
-              {user && user.user_type === 'freelancer' && (
-                <Link to="/tasks">
-                  <Button size="sm" className="bg-teal-600 hover:bg-teal-700 self-start">
-                    Find Tasks
-                  </Button>
-                </Link>
-              )}
+
+              {/* Get Started Button for non-authenticated users */}
               {!user && !isLoading && (
                 <a href="/login.html">
-                  <Button size="sm" className="bg-teal-600 hover:bg-teal-700 self-start">
+                  <Button size="sm" className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white shadow-lg hover:shadow-teal-500/25 transition-all duration-200">
+                    <Zap className="w-4 h-4" />
                     Get Started
                   </Button>
                 </a>
               )}
+
+              {/* Wallet Connection - Only show when logged in */}
+              {user && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500 transition-all duration-200"
+                  onClick={connectWallet}
+                >
+                  {account ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>{account.slice(0, 6)}...{account.slice(-4)}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                      <span>Connect Wallet</span>
+                    </div>
+                  )}
+                </Button>
+              )}
+
+              {/* User Section */}
+              {isLoading ? (
+                <div className="flex items-center space-x-2 px-3">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-500"></div>
+                  <span className="text-gray-400 text-sm">Loading...</span>
+                </div>
+              ) : user ? (
+                <div className="relative user-dropdown-container">
+                  <button
+                    onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                    className={`flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-all duration-200 group ${isUserDropdownOpen ? 'bg-gray-800/50' : ''}`}
+                  >
+                    <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-full flex items-center justify-center shadow-lg">
+                      <User className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-medium text-white group-hover:text-teal-300 transition-colors">
+                        {user.username}
+                      </span>
+                      <span className="text-xs text-gray-400 capitalize">
+                        {user.user_type}
+                      </span>
+                    </div>
+                    <svg
+                      className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {/* User Dropdown */}
+                  {isUserDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-64 bg-gray-900/95 backdrop-blur-lg border border-gray-700/50 rounded-xl shadow-xl py-2 z-50 animate-in slide-in-from-top-2 duration-200">
+                      <div className="px-4 py-3 border-b border-gray-700/50">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-full flex items-center justify-center flex-shrink-0">
+                            <User className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">{user.username}</p>
+                            <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                            <p className="text-xs text-teal-400 capitalize">{user.user_type}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="py-1">
+                        <Link
+                          to="/profile"
+                          className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-800/50 hover:text-white transition-colors"
+                          onClick={() => setIsUserDropdownOpen(false)}
+                        >
+                          <User className="w-4 h-4 mr-3" />
+                          Profile
+                        </Link>
+                        <button
+                          onClick={() => {
+                            logout();
+                            setIsUserDropdownOpen(false);
+                          }}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-300 hover:bg-gray-800/50 hover:text-white transition-colors"
+                        >
+                          <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                          Logout
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Mobile Menu Button */}
+            <div className="md:hidden">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="text-white hover:bg-gray-800 transition-all duration-200"
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
             </div>
           </div>
-        )}
+
+          {/* Mobile Menu */}
+          {isMenuOpen && (
+            <div className="md:hidden border-t border-gray-800/50 bg-gray-950/95 backdrop-blur-lg">
+              <div className="px-4 py-6 space-y-4">
+
+                {/* Navigation Links */}
+                <div className="space-y-2">
+                  <Link
+                    to="/"
+                    className="flex items-center px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Home className="w-4 h-4 mr-3" />
+                    Home
+                  </Link>
+                  <Link
+                    to="/tasks"
+                    className="flex items-center px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Search className="w-4 h-4 mr-3" />
+                    Browse Tasks
+                  </Link>
+                  {user && user.user_type === 'freelancer' && (
+                    <Link
+                      to="/my-submissions"
+                      className="flex items-center px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <Briefcase className="w-4 h-4 mr-3" />
+                      My Submissions
+                    </Link>
+                  )}
+                </div>
+
+                {/* User Section */}
+                {isLoading ? (
+                  <div className="flex items-center space-x-2 px-4 py-3">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-500"></div>
+                    <span className="text-gray-400">Loading...</span>
+                  </div>
+                ) : user ? (
+                  <div className="space-y-4 pt-4 border-t border-gray-800/50">
+
+                    {/* User Info */}
+                    <div className="flex items-center space-x-3 px-4 py-3 bg-gray-800/30 rounded-lg">
+                      <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <User className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="font-medium text-white truncate">{user.username}</span>
+                        <span className="text-sm text-gray-400 truncate">{user.email}</span>
+                        <span className="text-sm text-teal-400 capitalize">{user.user_type}</span>
+                      </div>
+                    </div>
+
+                    {/* Primary Action - Always show Post Task */}
+                    <Link to="/post-task" onClick={() => setIsMenuOpen(false)}>
+                      <Button className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white justify-start">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Post Task
+                      </Button>
+                    </Link>
+
+                    {/* Profile Link */}
+                    <Link
+                      to="/profile"
+                      className="flex items-center px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <User className="w-4 h-4 mr-3" />
+                      Profile
+                    </Link>
+
+                    {/* Logout */}
+                    <button
+                      onClick={() => {
+                        logout();
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex items-center w-full px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200"
+                    >
+                      <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Logout
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3 pt-4 border-t border-gray-800/50">
+                    <a href="/login.html">
+                      <Button className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white justify-start">
+                        <Zap className="w-4 h-4 mr-2" />
+                        Get Started
+                      </Button>
+                    </a>
+                  </div>
+                )}
+
+                {/* Wallet Connection - Only show when logged in */}
+                {user && (
+                  <div className="pt-4 border-t border-gray-800/50">
+                    <Button
+                      variant="outline"
+                      className="w-full border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500 justify-start"
+                      onClick={connectWallet}
+                    >
+                      {account ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span>{account.slice(0, 6)}...{account.slice(-4)}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                          </svg>
+                          <span>Connect Wallet</span>
+                        </div>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
-      {/* Wallet Selection Dialog */}
-      <Dialog open={showWalletDialog} onOpenChange={setShowWalletDialog}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white">
-          <DialogHeader>
-            <DialogTitle className="text-teal-400">Select Wallet Account</DialogTitle>
-            <DialogDescription className="text-gray-400">
-              Multiple accounts detected. Please select which account to connect.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 mt-4">
-            {availableAccounts.map((account, index) => (
-              <Card
-                key={account}
-                className="cursor-pointer hover:bg-gray-800/50 border-gray-700 transition-colors"
-                onClick={() => selectWalletAccount(account)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-white">Account {index + 1}</p>
-                      <p className="text-sm text-gray-400 font-mono">{account}</p>
-                    </div>
-                    <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                      Select
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+
 
       {/* Role Switch Celebration */}
       <Dialog open={showCelebration} onOpenChange={setShowCelebration}>
@@ -540,18 +777,18 @@ const Navigation = () => {
             ))}
 
             {/* Floating emojis */}
-            <div className="absolute top-4 left-4 text-2xl animate-bounce" style={{animationDelay: '0.5s'}}>⭐</div>
-            <div className="absolute top-8 right-6 text-xl animate-bounce" style={{animationDelay: '1s'}}>✨</div>
-            <div className="absolute bottom-8 left-8 text-2xl animate-bounce" style={{animationDelay: '1.5s'}}>🎯</div>
-            <div className="absolute bottom-4 right-4 text-xl animate-bounce" style={{animationDelay: '2s'}}>💫</div>
-            <div className="absolute top-1/2 left-6 text-lg animate-pulse" style={{animationDelay: '0.8s'}}>🎉</div>
-            <div className="absolute top-1/3 right-8 text-lg animate-pulse" style={{animationDelay: '1.3s'}}>🎆</div>
+            <div className="absolute top-4 left-4 text-2xl animate-bounce" style={{ animationDelay: '0.5s' }}>⭐</div>
+            <div className="absolute top-8 right-6 text-xl animate-bounce" style={{ animationDelay: '1s' }}>✨</div>
+            <div className="absolute bottom-8 left-8 text-2xl animate-bounce" style={{ animationDelay: '1.5s' }}>🎯</div>
+            <div className="absolute bottom-4 right-4 text-xl animate-bounce" style={{ animationDelay: '2s' }}>💫</div>
+            <div className="absolute top-1/2 left-6 text-lg animate-pulse" style={{ animationDelay: '0.8s' }}>🎉</div>
+            <div className="absolute top-1/3 right-8 text-lg animate-pulse" style={{ animationDelay: '1.3s' }}>🎆</div>
           </div>
         </DialogContent>
       </Dialog>
     </>
   );
-};
+});
 
 // Components
 const AnimatedCounter = ({ target, prefix = "", suffix = "" }) => {
@@ -617,145 +854,7 @@ const getStatusColor = (status) => {
   }
 };
 
-const TaskCard = ({ task, onFund, finished = false, onRate }) => {
-  const [showRating, setShowRating] = useState(false);
-  const [newRating, setNewRating] = useState(5);
-
-  const handleRateClient = async () => {
-    if (onRate) {
-      await onRate(task.client, newRating);
-      setShowRating(false);
-    }
-  };
-
-  return (
-    <Card className="task-card group hover:scale-[1.02] transition-all duration-300 hover:shadow-2xl hover:shadow-teal-500/20 border-gray-800 bg-gray-900/50 backdrop-blur-sm">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            {getCategoryIcon(task.category)}
-            <Badge variant="secondary" className="bg-teal-500/20 text-teal-300">
-              {task.category}
-            </Badge>
-          </div>
-          <div className={`w-3 h-3 rounded-full ${getStatusColor(task.status)} pulse-animation`} />
-        </div>
-        <CardTitle className="text-lg text-white group-hover:text-teal-300 transition-colors">
-          {task.title}
-        </CardTitle>
-        <CardDescription className="text-gray-400 line-clamp-2">
-          {task.description}
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <EthSymbol />
-            <span className="text-xl font-bold text-emerald-400">{task.budget} ETH</span>
-          </div>
-          <div className="flex items-center gap-1 text-sm text-gray-400">
-            <Clock className="w-4 h-4" />
-            <span>{task.deadline}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-2">
-            <Avatar className="w-6 h-6">
-              <AvatarFallback className="bg-teal-600 text-white text-xs">
-                {task.client.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <span className="text-gray-300">{task.client}</span>
-            <div className="flex items-center gap-1">
-              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-              <span className="text-amber-400">{task.clientRating}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 text-gray-400">
-            <Users className="w-4 h-4" />
-            <span>{task.applicants}</span>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-1">
-          {task.skills.slice(0, 3).map((skill) => (
-            <Badge key={skill} variant="outline" className="text-xs border-gray-700 text-gray-300">
-              {skill}
-            </Badge>
-          ))}
-        </div>
-
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${finished ? 'bg-amber-500' : (task.escrowStatus === 'funded' ? 'bg-emerald-500' : 'bg-amber-500')}`} />
-            <span className="text-xs text-gray-400">
-              Escrow {task.escrowStatus === 'funded' ? 'Paid' : 'Pending'}
-            </span>
-          </div>
-          {finished ? (
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-amber-600 text-amber-400 hover:bg-amber-600 hover:text-white"
-                onClick={() => setShowRating(!showRating)}
-              >
-                <Star className="w-3 h-3 mr-1" />
-                Rate Client
-              </Button>
-            </div>
-          ) : task.escrowStatus === 'funded' ? (
-            <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white">
-              Apply Now
-            </Button>
-          ) : (
-            <Button size="sm" variant="outline" className="border-teal-600 text-teal-400 hover:bg-teal-600 hover:text-white" onClick={() => onFund?.(task)}>
-              Fund Escrow
-            </Button>
-          )}
-        </div>
-
-        {/* Rating Dialog */}
-        {showRating && (
-          <div className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-300">Rate {task.client}:</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowRating(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X className="w-3 h-3" />
-              </Button>
-            </div>
-            <div className="flex items-center gap-2 mb-3">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <Star
-                  key={star}
-                  className={`w-5 h-5 cursor-pointer transition-colors ${
-                    star <= newRating ? 'fill-amber-400 text-amber-400' : 'text-gray-400'
-                  }`}
-                  onClick={() => setNewRating(star)}
-                />
-              ))}
-              <span className="text-sm text-gray-300 ml-2">{newRating}/5</span>
-            </div>
-            <Button
-              size="sm"
-              className="w-full bg-amber-600 hover:bg-amber-700 text-white"
-              onClick={handleRateClient}
-            >
-              Submit Rating
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
+// TaskCard component moved to separate file
 
 const StatsCard = ({ icon: Icon, title, value, subtitle, color = "teal" }) => {
   // Fix for success rate text color - ensure all text is white
@@ -779,7 +878,7 @@ const StatsCard = ({ icon: Icon, title, value, subtitle, color = "teal" }) => {
   );
 };
 
-const Hero = ({ totalTasks, liveTasks, totalPaidEth, isLoading, user }) => {
+const Hero = React.memo(({ totalTasks, liveTasks, totalPaidEth, isLoading, user }) => {
   const navigate = useNavigate();
 
   return (
@@ -800,49 +899,24 @@ const Hero = ({ totalTasks, liveTasks, totalPaidEth, isLoading, user }) => {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            {user ? (
-              // Show role-based buttons for authenticated users
-              user.user_type === 'client' ? (
-                <Button
-                  size="lg"
-                  className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-4 text-lg hover:scale-105 transition-transform"
-                  onClick={() => navigate('/post-task')}
-                >
-                  <Plus className="w-5 h-5 mr-2" />
-                  Post a Task
-                </Button>
-              ) : (
-                <Button
-                  size="lg"
-                  className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-4 text-lg hover:scale-105 transition-transform"
-                  onClick={() => navigate('/tasks')}
-                >
-                  <Search className="w-5 h-5 mr-2" />
-                  Find Tasks
-                </Button>
-              )
-            ) : (
-              // Show both buttons for non-authenticated users
-              <>
-                <Button
-                  size="lg"
-                  className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-4 text-lg hover:scale-105 transition-transform"
-                  onClick={() => navigate('/post-task')}
-                >
-                  <Plus className="w-5 h-5 mr-2" />
-                  Post a Task
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-teal-500 text-teal-400 hover:bg-teal-500 hover:text-white px-8 py-4 text-lg hover:scale-105 transition-transform"
-                  onClick={() => navigate('/tasks')}
-                >
-                  <Search className="w-5 h-5 mr-2" />
-                  Find Tasks
-                </Button>
-              </>
-            )}
+            {/* Always show both buttons regardless of user type */}
+            <Button
+              size="lg"
+              className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-4 text-lg hover:scale-105 transition-transform"
+              onClick={() => navigate('/post-task')}
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Post a Task
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="border-teal-500 text-teal-400 hover:bg-teal-500 hover:text-white px-8 py-4 text-lg hover:scale-105 transition-transform"
+              onClick={() => navigate('/tasks')}
+            >
+              <Search className="w-5 h-5 mr-2" />
+              Find Tasks
+            </Button>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -885,7 +959,7 @@ const Hero = ({ totalTasks, liveTasks, totalPaidEth, isLoading, user }) => {
       <div className="hero-gradient absolute inset-0 pointer-events-none" />
     </section>
   );
-};
+});
 
 const Features = () => {
   const features = [
@@ -945,6 +1019,73 @@ const Features = () => {
   );
 };
 
+// My Submissions Page Component
+const MySubmissionsPage = () => {
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const firebaseToken = localStorage.getItem('firebase_token');
+        if (!firebaseToken) {
+          window.location.href = '/login.html';
+          return;
+        }
+
+        const response = await axios.post(`${BACKEND_URL}/api/auth/firebase/verify`, {}, {
+          headers: { 'Authorization': `Bearer ${firebaseToken}` }
+        });
+
+        const userData = response.data.user;
+        setUser(userData);
+
+        // Check if user is a freelancer
+        if (userData.user_type !== 'freelancer') {
+          navigate('/');
+          return;
+        }
+      } catch (error) {
+        console.error('Failed to fetch user:', error);
+        localStorage.removeItem('firebase_token');
+        window.location.href = '/login.html';
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, [navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-950 pt-16 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 pt-16">
+      <div className="container mx-auto px-6 py-12">
+        <div className="flex items-center justify-between mb-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/')}
+            className="text-teal-400 hover:text-teal-300"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Home
+          </Button>
+        </div>
+
+        <MySubmissions currentUser={user} />
+      </div>
+    </div>
+  );
+};
+
 // Profile Page Component
 const ProfilePage = () => {
   const [user, setUser] = useState(null);
@@ -988,7 +1129,7 @@ const ProfilePage = () => {
       try {
         // Clean up old tokens
         localStorage.removeItem('access_token');
-        
+
         const firebaseToken = localStorage.getItem('firebase_token');
         if (!firebaseToken) {
           navigate('/login.html');
@@ -1078,23 +1219,50 @@ const ProfilePage = () => {
         }
       );
 
-      // Update local user state
-      setUser(prev => ({ ...prev, user_type: newUserType }));
+      // Update local user state immediately for instant UI update
+      const updatedUser = { ...user, user_type: newUserType };
+      setUser(updatedUser);
+
+      // Clear user cache and notify other components about user type change
+      localStorage.removeItem('cached_user_data');
+      localStorage.removeItem('user_cache_time');
+      localStorage.setItem('user_type_changed', Date.now().toString());
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'user_type_changed',
+        newValue: Date.now().toString()
+      }));
 
       // Clear user tasks since they'll be different for the new user type
       setUserTasks([]);
 
-      // Show celebration popup
+      // Refresh user tasks for the new user type
+      try {
+        if (newUserType === 'client') {
+          const myTasksResponse = await axios.get(`${API}/tasks/my-tasks`, {
+            headers: { 'Authorization': `Bearer ${firebaseToken}` }
+          });
+          const myTasks = Array.isArray(myTasksResponse.data) ? myTasksResponse.data.map(mapTaskFromApi) : [];
+          setUserTasks(myTasks);
+        } else {
+          // For freelancers, we would fetch their applications here
+          // This is a placeholder for when that functionality is implemented
+          setUserTasks([]);
+        }
+      } catch (taskError) {
+        console.error('Failed to fetch updated tasks:', taskError);
+        // Don't show error to user, just leave tasks empty
+      }
+
+      // Show celebration popup with faster timing
       const roleText = newUserType === 'client' ? 'Client' : 'Freelancer';
       setCelebrationMessage(`🎊 Congratulations! You've successfully switched to ${roleText} mode. ${newUserType === 'client' ? 'You can now post tasks and hire talented freelancers!' : 'You can now browse and apply to exciting projects!'}`);
       setShowCelebration(true);
 
-      // Auto-hide celebration after 5 seconds
+      // Auto-hide celebration after 3 seconds (faster)
       setTimeout(() => {
         setShowCelebration(false);
-        // Refresh the page to update all components
-        window.location.reload();
-      }, 5000);
+      }, 3000);
+
     } catch (error) {
       console.error('Failed to update user type:', error);
       alert('Failed to update account type. Please try again.');
@@ -1363,7 +1531,7 @@ const HomePage = () => {
       try {
         // Clean up old tokens first
         localStorage.removeItem('access_token');
-        
+
         const firebaseToken = localStorage.getItem('firebase_token');
         if (firebaseToken) {
           const response = await axios.post(`${BACKEND_URL}/api/auth/firebase/verify`, {}, {
@@ -1381,8 +1549,8 @@ const HomePage = () => {
 
     fetchTasks();
     checkUser();
-    // Refresh periodically for real-time-ish stats
-    intervalId = setInterval(fetchTasks, 30000);
+    // Refresh periodically for real-time-ish stats (reduced frequency for better performance)
+    intervalId = setInterval(fetchTasks, 60000); // Changed from 30s to 60s
 
     return () => {
       isMounted = false;
@@ -1543,20 +1711,6 @@ const TasksPage = () => {
 
       // If multiple accounts available, let user select
       let selectedAccount = accounts[0]; // Default to first account
-      if (accounts.length > 1) {
-        // Show account selection dialog
-        const accountChoice = await new Promise((resolve) => {
-          const accountList = accounts.map((acc, idx) => `${idx + 1}. ${acc}`).join('\n');
-          const choice = prompt(`Select source wallet address:\n${accountList}\n\nEnter number (1-${accounts.length}):`);
-          const choiceNum = parseInt(choice) - 1;
-          if (choiceNum >= 0 && choiceNum < accounts.length) {
-            resolve(accounts[choiceNum]);
-          } else {
-            resolve(accounts[0]); // Default to first if invalid choice
-          }
-        });
-        selectedAccount = accountChoice;
-      }
 
       // Switch to the correct network
       try {
@@ -1714,7 +1868,14 @@ const TasksPage = () => {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {liveTasks.map((task) => (
-              <TaskCard key={task.id} task={task} onFund={onFundTask} onRate={handleRateClient} />
+              <TaskCard 
+                key={task.id} 
+                task={task} 
+                onTaskUpdate={(updatedTask) => {
+                  setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+                }}
+                currentUser={user}
+              />
             ))}
           </div>
           {!isLoading && liveTasks.length === 0 && (
@@ -1730,7 +1891,14 @@ const TasksPage = () => {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {finishedTasks.map((task) => (
-              <TaskCard key={task.id} task={task} finished onRate={handleRateClient} />
+              <TaskCard 
+                key={task.id} 
+                task={task} 
+                onTaskUpdate={(updatedTask) => {
+                  setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+                }}
+                currentUser={user}
+              />
             ))}
           </div>
           {!isLoading && finishedTasks.length === 0 && (
@@ -1788,10 +1956,11 @@ const PostTaskPage = () => {
       try {
         // Clean up old tokens first
         localStorage.removeItem('access_token');
-        
+
         const firebaseToken = localStorage.getItem('firebase_token');
         if (!firebaseToken) {
-          navigate('/login.html');
+          // Use window.location.href for proper redirect to login page
+          window.location.href = '/login.html';
           return;
         }
 
@@ -1819,7 +1988,8 @@ const PostTaskPage = () => {
         // Token is invalid, remove all tokens
         localStorage.removeItem('firebase_token');
         localStorage.removeItem('access_token');
-        navigate('/login.html');
+        // Use window.location.href for proper redirect to login page
+        window.location.href = '/login.html';
       } finally {
         setIsLoadingUser(false);
       }
@@ -1890,28 +2060,18 @@ const PostTaskPage = () => {
         throw new Error("MetaMask not found. Install MetaMask to pay in ETH.");
       }
 
-      // Ensure user has connected wallet and selected an account
-      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      // Use connected wallet automatically
+      const accounts = await window.ethereum.request({ method: "eth_accounts" });
       if (accounts.length === 0) {
-        throw new Error("Please connect your wallet first.");
+        // Try to connect wallet if not connected
+        const newAccounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+        if (newAccounts.length === 0) {
+          throw new Error("Please connect your wallet first.");
+        }
       }
 
-      // If multiple accounts available, let user select
-      let selectedAccount = accounts[0]; // Default to first account
-      if (accounts.length > 1) {
-        // Show account selection dialog
-        const accountChoice = await new Promise((resolve) => {
-          const accountList = accounts.map((acc, idx) => `${idx + 1}. ${acc}`).join('\n');
-          const choice = prompt(`Select source wallet address:\n${accountList}\n\nEnter number (1-${accounts.length}):`);
-          const choiceNum = parseInt(choice) - 1;
-          if (choiceNum >= 0 && choiceNum < accounts.length) {
-            resolve(accounts[choiceNum]);
-          } else {
-            resolve(accounts[0]); // Default to first if invalid choice
-          }
-        });
-        selectedAccount = accountChoice;
-      }
+      // Always use the first connected account
+      const selectedAccount = accounts.length > 0 ? accounts[0] : (await window.ethereum.request({ method: "eth_requestAccounts" }))[0];
 
       try {
         await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: CHAIN_ID_HEX }] });
@@ -1977,6 +2137,9 @@ const PostTaskPage = () => {
 
     } catch (error) {
       console.error("Error submitting task:", error);
+      alert(`Failed to post task: ${error.message}`);
+      // Redirect to browse tasks even on failure
+      navigate('/tasks', { state: { flash: 'Task posting failed. Please try again.' } });
     } finally {
       setIsSubmitting(false);
     }
@@ -1988,7 +2151,11 @@ const PostTaskPage = () => {
   if (isLoadingUser) {
     return (
       <div className="min-h-screen bg-gray-950 pt-16 flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mx-auto mb-4"></div>
+          <div className="text-white text-lg">Loading...</div>
+          <div className="text-gray-400 text-sm mt-2">Verifying authentication...</div>
+        </div>
       </div>
     );
   }
@@ -2246,17 +2413,34 @@ const PostTaskPage = () => {
 };
 
 function App() {
-  const [appLoading, setAppLoading] = useState(true);
-
   useEffect(() => {
-    // Simulate app initialization
-    const timer = setTimeout(() => setAppLoading(false), 1000);
-    return () => clearTimeout(timer);
-  }, []);
+    // Hide initial loader when React app starts
+    if (window.hideInitialLoader) {
+      window.hideInitialLoader();
+    }
 
-  if (appLoading) {
-    return <LoadingSpinner message="Initializing DecentraTask..." />;
-  }
+    // Global wallet auto-reconnection on app load
+    const autoConnectWallet = async () => {
+      if (window.ethereum) {
+        try {
+          // Check if user is logged in
+          const firebaseToken = localStorage.getItem('firebase_token');
+          if (firebaseToken) {
+            // Check if accounts are already connected
+            const accounts = await window.ethereum.request({ method: "eth_accounts" });
+            if (accounts.length > 0) {
+              // Wallet is already connected, no need to do anything
+              console.log('Wallet auto-reconnected:', accounts[0]);
+            }
+          }
+        } catch (error) {
+          console.log('Wallet auto-reconnection failed:', error);
+        }
+      }
+    };
+
+    autoConnectWallet();
+  }, []);
 
   return (
     <div className="App">
@@ -2267,6 +2451,7 @@ function App() {
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/post-task" element={<PostTaskPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/my-submissions" element={<MySubmissionsPage />} />
         </Routes>
       </BrowserRouter>
     </div>

@@ -1,16 +1,21 @@
 import os
 import json
+import time
 import firebase_admin
 from firebase_admin import credentials, auth
 from fastapi import HTTPException, Header
-from typing import Optional
+from typing import Optional, Dict
 import logging
 
 logger = logging.getLogger(__name__)
 
+# Simple in-memory cache for token verification (for performance)
+_token_cache: Dict[str, tuple] = {}  # token_hash -> (decoded_token, expiry_time)
+CACHE_DURATION = 300  # 5 minutes cache
+
 # Initialize Firebase Admin SDK
 def initialize_firebase():
-    """Initialize Firebase Admin SDK"""
+    """Initialize Firebase Admin SDK with optimized performance"""
     logger.info("Starting Firebase initialization...")
     
     try:
@@ -23,11 +28,12 @@ def initialize_firebase():
         logger.info("Firebase not initialized, proceeding with setup...")
     
     # Try to get service account key from file path
-    service_account_path = os.environ.get('FIREBASE_SERVICE_ACCOUNT_KEY_PATH')
+    service_account_path = os.environ.get('FIREBASE_SERVICE_ACCOUNT_KEY_PATH', './firebase-service-account-key.json')
     service_account_json = os.environ.get('FIREBASE_SERVICE_ACCOUNT_KEY_JSON')
     
     logger.info(f"Service account path: {service_account_path}")
     logger.info(f"Service account JSON env var set: {service_account_json is not None}")
+    logger.info(f"Service account file exists: {os.path.exists(service_account_path) if service_account_path else False}")
     
     if service_account_path and os.path.exists(service_account_path):
         try:
@@ -53,7 +59,7 @@ def initialize_firebase():
         # For development: Create a minimal service account configuration
         try:
             logger.info("Initializing Firebase for development...")
-            project_id = os.environ.get('GOOGLE_CLOUD_PROJECT', 'datom-2b7ff')
+            project_id = os.environ.get('GOOGLE_CLOUD_PROJECT', "")
             
             # Create a minimal service account dict for development
             # This is a simplified approach for development only
@@ -93,7 +99,7 @@ def initialize_firebase():
             return
 
 async def verify_firebase_token(authorization: Optional[str] = Header(default=None)) -> dict:
-    """Verify Firebase ID token and return user info"""
+    """Verify Firebase ID token and return user info with caching for performance"""
     logger.info(f"Verifying Firebase token. Authorization header present: {authorization is not None}")
     
     if not authorization or not authorization.lower().startswith("bearer "):
@@ -103,37 +109,66 @@ async def verify_firebase_token(authorization: Optional[str] = Header(default=No
     token = authorization.split(" ", 1)[1]
     logger.info(f"Extracted token (first 20 chars): {token[:20]}...")
     
+    # Check cache first for performance
+    token_hash = hash(token)
+    current_time = time.time()
+    
+    if token_hash in _token_cache:
+        cached_token, expiry_time = _token_cache[token_hash]
+        if current_time < expiry_time:
+            logger.info("Using cached token verification result")
+            return cached_token
+        else:
+            # Remove expired cache entry
+            del _token_cache[token_hash]
+    
     try:
         # Check if Firebase is initialized
         try:
             app = firebase_admin.get_app()
             logger.info(f"Firebase app initialized: {app.project_id}")
             
-            # Verify the Firebase ID token with clock skew tolerance
-            decoded_token = auth.verify_id_token(token, clock_skew_seconds=60)
+            # Verify the Firebase ID token with clock skew tolerance (max 60 seconds)
+            decoded_token = auth.verify_id_token(token, clock_skew_seconds=60)  # Maximum allowed tolerance
             logger.info(f"Token verified successfully for user: {decoded_token.get('uid')}")
+            logger.info(f"Token details - aud: {decoded_token.get('aud')}, iss: {decoded_token.get('iss')}")
+            
+            # Cache the result for performance (but not too long for security)
+            cache_expiry = current_time + CACHE_DURATION
+            _token_cache[token_hash] = (decoded_token, cache_expiry)
+            
+            # Clean up old cache entries periodically
+            if len(_token_cache) > 100:  # Prevent memory bloat
+                expired_keys = [k for k, (_, exp) in _token_cache.items() if current_time >= exp]
+                for k in expired_keys:
+                    del _token_cache[k]
+            
             return decoded_token
             
-        except ValueError:
-            logger.error("Firebase app not initialized!")
+        except ValueError as ve:
+            logger.error(f"Firebase app not initialized: {ve}")
             raise HTTPException(status_code=500, detail="Firebase authentication not available")
         
     except auth.InvalidIdTokenError as e:
         logger.error(f"Invalid ID token: {e}")
+        logger.error(f"Token details for debugging: {token[:50]}...")
         raise HTTPException(status_code=401, detail="Invalid token")
     except auth.ExpiredIdTokenError as e:
         logger.error(f"Expired ID token: {e}")
         raise HTTPException(status_code=401, detail="Token expired")
     except Exception as e:
         logger.error(f"Token verification error: {type(e).__name__}: {e}")
+        logger.error(f"Full error details: {str(e)}")
         raise HTTPException(status_code=401, detail=f"Token verification failed: {str(e)}")
 
 def get_user_from_firebase_token(decoded_token: dict) -> dict:
     """Extract user information from decoded Firebase token"""
-    return {
+    user_data = {
         "uid": decoded_token.get("uid"),
         "email": decoded_token.get("email"),
         "name": decoded_token.get("name", decoded_token.get("email", "").split("@")[0]),
         "picture": decoded_token.get("picture"),
         "email_verified": decoded_token.get("email_verified", False)
     }
+    
+    return user_data

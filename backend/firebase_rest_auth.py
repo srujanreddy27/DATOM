@@ -65,10 +65,12 @@ async def verify_firebase_token_rest(authorization: Optional[str] = Header(defau
 
 def get_user_from_firebase_token_rest(decoded_token: dict) -> dict:
     """Extract user information from decoded Firebase token (REST API version)"""
-    return {
+    user_data = {
         "uid": decoded_token.get("uid"),
         "email": decoded_token.get("email"),
         "name": decoded_token.get("name", decoded_token.get("email", "").split("@")[0]),
         "picture": decoded_token.get("picture"),
         "email_verified": decoded_token.get("email_verified", False)
     }
+    
+    return user_data

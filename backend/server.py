@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, Request, UploadFile, File, Form
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 import os
@@ -10,16 +10,35 @@ import uuid
 from datetime import datetime, timezone
 import jwt
 from passlib.context import CryptContext
-from fastapi.responses import JSONResponse
-# from firebase_auth import initialize_firebase, verify_firebase_token, get_user_from_firebase_token
-from firebase_rest_auth import verify_firebase_token_rest, get_user_from_firebase_token_rest
+from fastapi.responses import JSONResponse, FileResponse
+from firebase_auth import initialize_firebase
+from firebase_hybrid_auth import verify_firebase_token_hybrid
 from firebase_db import firebase_db
+import logging
+
+logger = logging.getLogger(__name__)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Firebase Admin SDK initialization disabled - using REST API instead
-# initialize_firebase()
+# File upload configuration
+UPLOAD_DIR = ROOT_DIR / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+ALLOWED_EXTENSIONS = {'.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mov', '.avi'}
+
+# Initialize Firebase Admin SDK
+try:
+    initialize_firebase()
+    logger.info("Firebase Admin SDK initialized in server.py")
+    
+    # Test Firebase app
+    import firebase_admin
+    app = firebase_admin.get_app()
+    logger.info(f"Firebase app project ID: {app.project_id}")
+except Exception as e:
+    logger.error(f"Failed to initialize Firebase in server.py: {e}")
+    logger.error("Falling back to REST API authentication")
 
 # JWT Configuration
 SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-here-change-in-production')
@@ -32,6 +51,21 @@ app = FastAPI()
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
+# Startup event to warm up connections
+@app.on_event("startup")
+async def startup_event():
+    """Warm up Firebase connections and cache for faster first requests"""
+    logger.info("Starting server warmup...")
+    try:
+        # Warm up Firebase connection
+        import firebase_admin
+        app_instance = firebase_admin.get_app()
+        logger.info(f"Firebase connection warmed up for project: {app_instance.project_id}")
+    except Exception as e:
+        logger.warning(f"Firebase warmup failed (will use REST API): {e}")
+    
+    logger.info("Server warmup completed")
+
 # Define Models
 class Task(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -43,7 +77,7 @@ class Task(BaseModel):
     client: str
     client_rating: float = 4.5
     status: str = "open"
-    applicants: int = 0
+    submissions: int = 0
     skills: List[str] = []
     escrow_status: str = "pending"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -85,22 +119,16 @@ class EscrowTransaction(BaseModel):
     smart_contract_address: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-class Application(BaseModel):
+class Submission(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     task_id: str
     freelancer_id: str
-    proposal: str
-    bid_amount: float
-    estimated_completion: str
-    status: str = "pending"  # pending, accepted, rejected
+    freelancer_name: str
+    description: str
+    files: List[str] = []  # File paths on server
+    status: str = "pending"  # pending, approved, rejected
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class ApplicationCreate(BaseModel):
-    task_id: str
-    freelancer_id: str
-    proposal: str
-    bid_amount: float
-    estimated_completion: str
+    approved_at: Optional[datetime] = None
 
 # ---------------- Authentication Models/Setup ----------------
 class SignupRequest(BaseModel):
@@ -180,9 +208,8 @@ async def save_user(user: User):
     await firebase_db.save_user(user.dict())
 
 async def get_current_user(authorization: Optional[str] = Header(default=None)) -> User:
-    # Use Firebase REST API for token verification (no Admin SDK needed)
-    decoded_token = await verify_firebase_token_rest(authorization)
-    firebase_user = get_user_from_firebase_token_rest(decoded_token)
+    # Use hybrid Firebase token verification
+    firebase_user = await verify_firebase_token_hybrid(authorization)
     
     # Get or create user in our database
     user = await get_user_by_firebase_uid(firebase_user["uid"])
@@ -197,6 +224,7 @@ async def get_current_user(authorization: Optional[str] = Header(default=None)) 
         )
         await save_user(user_obj)
         user = user_obj
+
     
     return user
 
@@ -222,6 +250,31 @@ def is_past_deadline(deadline_str: str) -> bool:
         return deadline_dt < now.replace(hour=0, minute=0, second=0, microsecond=0)
     except Exception:
         return False
+
+async def save_uploaded_file(file: UploadFile, task_id: str, freelancer_id: str) -> str:
+    """Save uploaded file and return the file path"""
+    # Validate file extension
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"File type {file_ext} not allowed")
+    
+    # Create unique filename
+    unique_filename = f"{task_id}_{freelancer_id}_{uuid.uuid4().hex[:8]}{file_ext}"
+    file_path = UPLOAD_DIR / unique_filename
+    
+    # Save file
+    try:
+        content = await file.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="File too large (max 50MB)")
+        
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        return str(file_path.relative_to(ROOT_DIR))
+    except Exception as e:
+        logger.error(f"Failed to save file: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save file")
 
 def is_significantly_past_deadline(deadline_str: str) -> bool:
     try:
@@ -378,37 +431,294 @@ async def get_users(user_type: Optional[str] = None, limit: int = 50):
     # TODO: Implement get_all_users in firebase_db
     return []
 
-# Application Management Routes
-@api_router.post("/applications", response_model=Application)
-async def create_application(application: ApplicationCreate):
-    """Create a new task application"""
-    app_dict = application.dict()
-    app_obj = Application(**app_dict)
+# Submission Management Routes
+@api_router.post("/submissions", response_model=Submission)
+async def create_submission(
+    task_id: str = Form(...),
+    description: str = Form(...),
+    files: List[UploadFile] = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Submit completed work for a task with file uploads"""
+    # Only freelancers can submit work
+    if current_user.user_type != "freelancer":
+        raise HTTPException(status_code=403, detail="Only freelancers can submit work")
     
-    # Save application to Firebase
-    success = await firebase_db.save_application(app_obj.dict())
+    # Check if task exists
+    task_data = await firebase_db.get_task_by_id(task_id)
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Check if task is still open
+    if task_data.get("status") != "open":
+        raise HTTPException(status_code=400, detail="Task is no longer accepting submissions")
+    
+    # Check if freelancer has already submitted work
+    existing_sub = await firebase_db.check_existing_submission(task_id, current_user.id)
+    if existing_sub:
+        raise HTTPException(status_code=400, detail="You have already submitted work for this task")
+    
+    # Check if task already has an approved submission
+    approved_sub = await firebase_db.get_approved_submission_for_task(task_id)
+    if approved_sub:
+        raise HTTPException(status_code=400, detail="This task already has an approved submission")
+    
+    # Validate submission
+    if not description.strip():
+        raise HTTPException(status_code=400, detail="Description is required")
+    
+    if not files or len(files) == 0:
+        raise HTTPException(status_code=400, detail="At least one file is required")
+    
+    # Validate and save uploaded files
+    saved_files = []
+    for file in files:
+        if file.filename:  # Skip empty files
+            file_path = await save_uploaded_file(file, task_id, current_user.id)
+            saved_files.append(file_path)
+    
+    if not saved_files:
+        raise HTTPException(status_code=400, detail="No valid files uploaded")
+    
+    # Create submission with current user as freelancer
+    sub_obj = Submission(
+        task_id=task_id,
+        freelancer_id=current_user.id,
+        freelancer_name=current_user.username,
+        description=description.strip(),
+        files=saved_files
+    )
+    
+    # Save submission to Firebase
+    success = await firebase_db.save_submission(sub_obj.dict())
     if not success:
-        raise HTTPException(status_code=500, detail="Failed to save application")
+        raise HTTPException(status_code=500, detail="Failed to save submission")
     
-    # Update task applicant count
-    task_data = await firebase_db.get_task_by_id(application.task_id)
-    if task_data:
-        current_applicants = task_data.get("applicants", 0)
-        await firebase_db.update_task(application.task_id, {"applicants": current_applicants + 1})
+    # Update task submission count
+    current_submissions = task_data.get("submissions", 0)
+    await firebase_db.update_task(task_id, {"submissions": current_submissions + 1})
     
-    return app_obj
+    return sub_obj
 
-@api_router.get("/applications/task/{task_id}", response_model=List[Application])
-async def get_task_applications(task_id: str):
-    """Get all applications for a specific task"""
-    # TODO: Implement get_applications_by_task_id in firebase_db
-    return []
+@api_router.get("/submissions/task/{task_id}", response_model=List[Submission])
+async def get_task_submissions(task_id: str, current_user: User = Depends(get_current_user)):
+    """Get all submissions for a specific task (task owner only)"""
+    # Check if task exists and user is the owner
+    task_data = await firebase_db.get_task_by_id(task_id)
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if task_data.get("client") != current_user.username:
+        raise HTTPException(status_code=403, detail="Only task owner can view submissions")
+    
+    # Get submissions
+    submissions_data = await firebase_db.get_submissions_by_task_id(task_id)
+    submissions = [Submission(**sub_data) for sub_data in submissions_data]
+    
+    return submissions
 
-@api_router.get("/applications/user/{user_id}", response_model=List[Application])
-async def get_user_applications(user_id: str):
-    """Get all applications by a specific user"""
-    # TODO: Implement get_applications_by_user_id in firebase_db
-    return []
+@api_router.get("/submissions/my-submissions", response_model=List[Submission])
+async def get_my_submissions(current_user: User = Depends(get_current_user)):
+    """Get all submissions by the current user (freelancer only)"""
+    if current_user.user_type != "freelancer":
+        raise HTTPException(status_code=403, detail="Only freelancers can view their submissions")
+    
+    # Get submissions
+    submissions_data = await firebase_db.get_submissions_by_freelancer_id(current_user.id)
+    submissions = [Submission(**sub_data) for sub_data in submissions_data]
+    
+    return submissions
+
+@api_router.get("/submissions/{submission_id}", response_model=Submission)
+async def get_submission(submission_id: str, current_user: User = Depends(get_current_user)):
+    """Get a specific submission"""
+    sub_data = await firebase_db.get_submission_by_id(submission_id)
+    if not sub_data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    submission = Submission(**sub_data)
+    
+    # Check if user has permission to view this submission
+    if submission.freelancer_id != current_user.id:
+        # Check if user is the task owner
+        task_data = await firebase_db.get_task_by_id(submission.task_id)
+        if not task_data or task_data.get("client") != current_user.username:
+            raise HTTPException(status_code=403, detail="Not authorized to view this submission")
+    
+    return submission
+
+@api_router.put("/submissions/{submission_id}/approve")
+async def approve_submission(
+    submission_id: str, 
+    current_user: User = Depends(get_current_user)
+):
+    """Approve a submission and release escrow funds (task owner only)"""
+    # Get submission
+    sub_data = await firebase_db.get_submission_by_id(submission_id)
+    if not sub_data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    # Check if user is the task owner
+    task_data = await firebase_db.get_task_by_id(sub_data["task_id"])
+    if not task_data or task_data.get("client") != current_user.username:
+        raise HTTPException(status_code=403, detail="Only task owner can approve submissions")
+    
+    # Check if submission is still pending
+    if sub_data.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="Submission is not pending")
+    
+    # Check if task already has an approved submission
+    existing_approved = await firebase_db.get_approved_submission_for_task(sub_data["task_id"])
+    if existing_approved and existing_approved["id"] != submission_id:
+        raise HTTPException(status_code=400, detail="Task already has an approved submission")
+    
+    # Update submission status to approved
+    success = await firebase_db.update_submission(submission_id, {
+        "status": "approved",
+        "approved_at": datetime.now(timezone.utc)
+    })
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to approve submission")
+    
+    # Update task status to completed
+    await firebase_db.update_task(sub_data["task_id"], {"status": "completed"})
+    
+    # Reject all other pending submissions for this task
+    all_submissions = await firebase_db.get_submissions_by_task_id(sub_data["task_id"])
+    for other_sub in all_submissions:
+        if other_sub["id"] != submission_id and other_sub.get("status") == "pending":
+            await firebase_db.update_submission(other_sub["id"], {"status": "rejected"})
+    
+    # Update freelancer earnings
+    freelancer_id = sub_data["freelancer_id"]
+    task_budget = task_data.get("budget", 0)
+    try:
+        await firebase_db.update_user(freelancer_id, {
+            "total_earnings": task_budget,  # This should be incremented in a real system
+            "completed_tasks": 1  # This should also be incremented
+        })
+    except Exception as e:
+        logger.warning(f"Failed to update freelancer earnings: {e}")
+    
+    return {"message": "Submission approved and funds released", "status": "approved"}
+
+@api_router.put("/submissions/{submission_id}/reject")
+async def reject_submission(
+    submission_id: str, 
+    current_user: User = Depends(get_current_user)
+):
+    """Reject a submission (task owner only)"""
+    # Get submission
+    sub_data = await firebase_db.get_submission_by_id(submission_id)
+    if not sub_data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    # Check if user is the task owner
+    task_data = await firebase_db.get_task_by_id(sub_data["task_id"])
+    if not task_data or task_data.get("client") != current_user.username:
+        raise HTTPException(status_code=403, detail="Only task owner can reject submissions")
+    
+    # Check if submission is still pending
+    if sub_data.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="Submission is not pending")
+    
+    # Update submission status to rejected
+    success = await firebase_db.update_submission(submission_id, {"status": "rejected"})
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to reject submission")
+    
+    return {"message": "Submission rejected", "status": "rejected"}
+
+@api_router.get("/tasks/{task_id}/can-submit")
+async def can_submit_to_task(task_id: str, current_user: User = Depends(get_current_user)):
+    """Check if current user can submit work for a task"""
+    # Only freelancers can submit
+    if current_user.user_type != "freelancer":
+        return {"can_submit": False, "reason": "Only freelancers can submit work"}
+    
+    # Check if task exists
+    task_data = await firebase_db.get_task_by_id(task_id)
+    if not task_data:
+        return {"can_submit": False, "reason": "Task not found"}
+    
+    # Check if task is still open
+    if task_data.get("status") != "open":
+        return {"can_submit": False, "reason": "Task is no longer accepting submissions"}
+    
+    # Check if user is the task owner
+    if task_data.get("client") == current_user.username:
+        return {"can_submit": False, "reason": "You cannot submit work for your own task"}
+    
+    # Check if already submitted
+    existing_sub = await firebase_db.check_existing_submission(task_id, current_user.id)
+    if existing_sub:
+        return {"can_submit": False, "reason": "You have already submitted work for this task", "submission": existing_sub}
+    
+    # Check if task already has approved submission
+    approved_sub = await firebase_db.get_approved_submission_for_task(task_id)
+    if approved_sub:
+        return {"can_submit": False, "reason": "This task already has an approved submission"}
+    
+    return {"can_submit": True}
+
+@api_router.get("/download-file")
+async def download_file_with_token(file_path: str, token: str):
+    """Download files with Firebase token authentication (for browser links)"""
+    try:
+        # Verify Firebase token using our hybrid verification
+        authorization_header = f"Bearer {token}"
+        firebase_user = await verify_firebase_token_hybrid(authorization_header)
+        
+        # Get user from our database
+        user = await get_user_by_firebase_uid(firebase_user["uid"])
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        
+        full_path = ROOT_DIR / file_path
+        
+        # Security check: ensure file is in uploads directory
+        if not str(full_path).startswith(str(UPLOAD_DIR)):
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Check if file exists
+        if not full_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Additional security: verify user has access to this file
+        filename = full_path.name
+        try:
+            parts = filename.split('_')
+            if len(parts) >= 2:
+                task_id = parts[0]
+                freelancer_id = parts[1]
+                
+                # Check if current user is either:
+                # 1. The freelancer who uploaded the file
+                # 2. The client who owns the task
+                if user.id == freelancer_id:
+                    # Freelancer accessing their own file
+                    pass
+                else:
+                    # Check if user is the task owner
+                    task_data = await firebase_db.get_task_by_id(task_id)
+                    if not task_data or task_data.get("client") != user.username:
+                        raise HTTPException(status_code=403, detail="Access denied - not authorized to view this file")
+        except Exception as e:
+            logger.warning(f"Could not verify file access for {filename}: {e}")
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Return file
+        return FileResponse(
+            path=full_path,
+            filename=full_path.name,
+            media_type='application/octet-stream'
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"File download error: {e}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
 
 # ---------------- Authentication Routes ----------------
 @api_router.post("/auth/signup", response_model=TokenResponse)
@@ -462,10 +772,9 @@ async def me(authorization: Optional[str] = Header(default=None)):
     
     token = authorization.split(" ", 1)[1]
     
-    # Try Firebase token first (REST API version)
+    # Try Firebase token first (hybrid version)
     try:
-        decoded_token = await verify_firebase_token_rest(authorization)
-        firebase_user = get_user_from_firebase_token_rest(decoded_token)
+        firebase_user = await verify_firebase_token_hybrid(authorization)
         
         # Get or create user in our database
         user = await get_user_by_firebase_uid(firebase_user["uid"])
@@ -475,7 +784,7 @@ async def me(authorization: Optional[str] = Header(default=None)):
                 username=firebase_user["name"],
                 email=firebase_user["email"],
                 user_type="freelancer",  # default
-                firebase_uid=firebase_user["uid"]
+                firebase_uid=firebase_user["uid"],
             )
             await save_user(user_obj)
             user = user_obj
@@ -574,8 +883,7 @@ async def verify_firebase_auth(authorization: Optional[str] = Header(default=Non
     """Verify Firebase token and return user info"""
     try:
         # Verify Firebase token
-        decoded_token = await verify_firebase_token_rest(authorization)
-        firebase_user = get_user_from_firebase_token_rest(decoded_token)
+        firebase_user = await verify_firebase_token_hybrid(authorization)
         
         # Get or create user in our database
         user = await get_user_by_firebase_uid(firebase_user["uid"])
@@ -585,10 +893,11 @@ async def verify_firebase_auth(authorization: Optional[str] = Header(default=Non
                 username=firebase_user["name"],
                 email=firebase_user["email"],
                 user_type="freelancer",  # default
-                firebase_uid=firebase_user["uid"]
+                firebase_uid=firebase_user["uid"],
             )
             await save_user(user_obj)
             user = user_obj
+
         
         return {
             "user": user,
@@ -608,8 +917,7 @@ async def firebase_signup(payload: FirebaseSignupRequest, authorization: Optiona
     """Create a new user account with Firebase authentication"""
     try:
         # Verify Firebase token
-        decoded_token = await verify_firebase_token_rest(authorization)
-        firebase_user = get_user_from_firebase_token_rest(decoded_token)
+        firebase_user = await verify_firebase_token_hybrid(authorization)
         
         # Check if user already exists
         existing_user = await get_user_by_firebase_uid(firebase_user["uid"])
@@ -625,7 +933,7 @@ async def firebase_signup(payload: FirebaseSignupRequest, authorization: Optiona
             username=payload.username,
             email=firebase_user["email"],
             user_type=payload.user_type,
-            firebase_uid=firebase_user["uid"]
+            firebase_uid=firebase_user["uid"],
         )
         await save_user(user_obj)
         

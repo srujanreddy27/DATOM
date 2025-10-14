@@ -4,12 +4,17 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 import firebase_admin
 from firebase_admin import firestore
-# from firebase_auth import initialize_firebase
+from firebase_auth import initialize_firebase
 
 logger = logging.getLogger(__name__)
 
-# Firebase Admin SDK initialization disabled for development - using memory storage
-# initialize_firebase()
+# Initialize Firebase Admin SDK
+try:
+    initialize_firebase()
+    logger.info("Firebase Admin SDK initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize Firebase Admin SDK: {e}")
+    logger.warning("Continuing with in-memory storage")
 
 def get_firestore_client():
     """Get Firestore client"""
@@ -22,7 +27,7 @@ def get_firestore_client():
 # Collections
 USERS_COLLECTION = 'users'
 TASKS_COLLECTION = 'tasks'
-APPLICATIONS_COLLECTION = 'applications'
+SUBMISSIONS_COLLECTION = 'submissions'
 AUTH_USERS_COLLECTION = 'auth_users'
 ESCROW_TRANSACTIONS_COLLECTION = 'escrow_transactions'
 
@@ -33,7 +38,7 @@ class FirebaseDB:
         # In-memory fallback stores
         self.memory_tasks = []
         self.memory_users = []
-        self.memory_applications = []
+        self.memory_submissions = []
         self.memory_auth_users = []
         self.memory_escrow_transactions = []
         
@@ -329,24 +334,142 @@ class FirebaseDB:
             logger.error(f"Failed to upsert auth record: {e}")
             return {}
 
-    # Application operations
-    async def save_application(self, application_data: dict) -> bool:
-        """Save application to Firestore"""
+    # Submission operations
+    async def save_submission(self, submission_data: dict) -> bool:
+        """Save submission to Firestore"""
         try:
             if self.db:
-                prepared_data = self.prepare_for_firestore(application_data)
-                doc_ref = self.db.collection(APPLICATIONS_COLLECTION).document(application_data['id'])
+                prepared_data = self.prepare_for_firestore(submission_data)
+                doc_ref = self.db.collection(SUBMISSIONS_COLLECTION).document(submission_data['id'])
                 doc_ref.set(prepared_data)
-                logger.info(f"Application saved to Firestore: {application_data['id']}")
+                logger.info(f"Submission saved to Firestore: {submission_data['id']}")
                 return True
             else:
                 # Fallback to memory
-                self.memory_applications.append(application_data)
-                logger.info(f"Application saved to memory: {application_data['id']}")
+                self.memory_submissions.append(submission_data)
+                logger.info(f"Submission saved to memory: {submission_data['id']}")
                 return True
         except Exception as e:
-            logger.error(f"Failed to save application: {e}")
+            logger.error(f"Failed to save submission: {e}")
             return False
+
+    async def get_submissions_by_task_id(self, task_id: str) -> List[dict]:
+        """Get all submissions for a specific task"""
+        try:
+            if self.db:
+                subs_ref = self.db.collection(SUBMISSIONS_COLLECTION)
+                query = subs_ref.where('task_id', '==', task_id)
+                docs = query.stream()
+                submissions = []
+                for doc in docs:
+                    sub_data = doc.to_dict()
+                    submissions.append(sub_data)
+                return submissions
+            else:
+                # Fallback to memory
+                return [sub for sub in self.memory_submissions if sub.get('task_id') == task_id]
+        except Exception as e:
+            logger.error(f"Failed to get submissions by task ID: {e}")
+            return []
+
+    async def get_submissions_by_freelancer_id(self, freelancer_id: str) -> List[dict]:
+        """Get all submissions by a specific freelancer"""
+        try:
+            if self.db:
+                subs_ref = self.db.collection(SUBMISSIONS_COLLECTION)
+                query = subs_ref.where('freelancer_id', '==', freelancer_id)
+                docs = query.stream()
+                submissions = []
+                for doc in docs:
+                    sub_data = doc.to_dict()
+                    submissions.append(sub_data)
+                return submissions
+            else:
+                # Fallback to memory
+                return [sub for sub in self.memory_submissions if sub.get('freelancer_id') == freelancer_id]
+        except Exception as e:
+            logger.error(f"Failed to get submissions by freelancer ID: {e}")
+            return []
+
+    async def get_submission_by_id(self, submission_id: str) -> Optional[dict]:
+        """Get submission by ID"""
+        try:
+            if self.db:
+                doc_ref = self.db.collection(SUBMISSIONS_COLLECTION).document(submission_id)
+                doc = doc_ref.get()
+                if doc.exists:
+                    return doc.to_dict()
+                return None
+            else:
+                # Fallback to memory
+                for sub in self.memory_submissions:
+                    if sub.get('id') == submission_id:
+                        return sub
+                return None
+        except Exception as e:
+            logger.error(f"Failed to get submission by ID: {e}")
+            return None
+
+    async def update_submission(self, submission_id: str, update_data: dict) -> bool:
+        """Update submission data"""
+        try:
+            if self.db:
+                doc_ref = self.db.collection(SUBMISSIONS_COLLECTION).document(submission_id)
+                prepared_data = self.prepare_for_firestore(update_data)
+                doc_ref.update(prepared_data)
+                logger.info(f"Submission updated in Firestore: {submission_id}")
+                return True
+            else:
+                # Fallback to memory
+                for i, sub in enumerate(self.memory_submissions):
+                    if sub.get('id') == submission_id:
+                        self.memory_submissions[i].update(update_data)
+                        logger.info(f"Submission updated in memory: {submission_id}")
+                        return True
+                return False
+        except Exception as e:
+            logger.error(f"Failed to update submission: {e}")
+            return False
+
+    async def check_existing_submission(self, task_id: str, freelancer_id: str) -> Optional[dict]:
+        """Check if freelancer has already submitted work for this task"""
+        try:
+            if self.db:
+                subs_ref = self.db.collection(SUBMISSIONS_COLLECTION)
+                query = subs_ref.where('task_id', '==', task_id).where('freelancer_id', '==', freelancer_id).limit(1)
+                docs = query.stream()
+                for doc in docs:
+                    return doc.to_dict()
+                return None
+            else:
+                # Fallback to memory
+                for sub in self.memory_submissions:
+                    if sub.get('task_id') == task_id and sub.get('freelancer_id') == freelancer_id:
+                        return sub
+                return None
+        except Exception as e:
+            logger.error(f"Failed to check existing submission: {e}")
+            return None
+
+    async def get_approved_submission_for_task(self, task_id: str) -> Optional[dict]:
+        """Get the approved submission for a task (if any)"""
+        try:
+            if self.db:
+                subs_ref = self.db.collection(SUBMISSIONS_COLLECTION)
+                query = subs_ref.where('task_id', '==', task_id).where('status', '==', 'approved').limit(1)
+                docs = query.stream()
+                for doc in docs:
+                    return doc.to_dict()
+                return None
+            else:
+                # Fallback to memory
+                for sub in self.memory_submissions:
+                    if sub.get('task_id') == task_id and sub.get('status') == 'approved':
+                        return sub
+                return None
+        except Exception as e:
+            logger.error(f"Failed to get approved submission: {e}")
+            return None
 
     # Escrow transaction operations
     async def save_escrow_transaction(self, escrow_data: dict) -> bool:
