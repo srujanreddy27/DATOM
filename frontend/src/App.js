@@ -730,81 +730,70 @@ const Navigation = React.memo(() => {
 
 
       {/* Role Switch Celebration */}
-      <Dialog open={showCelebration} onOpenChange={setShowCelebration}>
-        <DialogContent className="bg-gradient-to-br from-purple-900/90 to-blue-900/90 border-purple-500/50 text-white max-w-md">
-          <DialogHeader className="text-center">
-            <div className="mx-auto mb-4 text-6xl animate-bounce">
-              🎉
-            </div>
-            <DialogTitle className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-              Role Updated Successfully!
-            </DialogTitle>
-            <DialogDescription className="text-gray-200 text-lg">
-              {celebrationMessage}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-center mt-6">
-            <Button
-              onClick={() => setShowCelebration(false)}
-              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8"
-            >
-              Awesome! Let's Go
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {showCelebration && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/80 backdrop-blur-lg">
+          <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800 max-w-lg w-full mx-4 shadow-2xl animate-in fade-in zoom-in duration-300">
+            <CardHeader className="text-center pb-6">
+              <div className="mx-auto mb-6 w-24 h-24 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-full flex items-center justify-center shadow-lg animate-bounce">
+                <CheckCircle className="w-12 h-12 text-white" />
+              </div>
+              <CardTitle className="text-3xl font-bold text-white mb-4">
+                🎉 Role Updated Successfully!
+              </CardTitle>
+              <CardDescription className="text-gray-300 text-lg leading-relaxed">
+                {celebrationMessage}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0 pb-8">
+              <div className="flex justify-center">
+                <Button
+                  onClick={() => setShowCelebration(false)}
+                  className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-teal-500/25 transition-all duration-200"
+                >
+                  <CheckCircle className="w-5 h-5 mr-2" />
+                  Continue
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Login Celebration with Confetti */}
-      <Dialog open={showLoginCelebration} onOpenChange={setShowLoginCelebration}>
-        <DialogContent className="bg-gradient-to-br from-emerald-900/90 to-teal-900/90 border-emerald-500/50 text-white max-w-lg relative overflow-hidden">
-          <DialogHeader className="text-center relative z-10">
-            <div className="mx-auto mb-4 text-8xl animate-pulse">
-              🚀
-            </div>
-            <DialogTitle className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">
-              Welcome Back, Champion!
-            </DialogTitle>
-            <DialogDescription className="text-gray-200 text-lg mt-2">
-              You've successfully logged into DecentraTask. Ready to revolutionize the future of work?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-center mt-6 space-x-3 relative z-10">
-            <Button
-              onClick={() => setShowLoginCelebration(false)}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-6"
-            >
-              Let's Build Something Amazing!
-            </Button>
-          </div>
-
-          {/* Confetti Animation */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            {/* Confetti pieces */}
-            {[...Array(20)].map((_, i) => (
-              <div
-                key={i}
-                className="absolute w-2 h-2 opacity-80"
-                style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `-10px`,
-                  backgroundColor: ['#10b981', '#06d6a0', '#ffd60a', '#ff6b6b', '#4ecdc4'][Math.floor(Math.random() * 5)],
-                  animation: `confetti-fall ${2 + Math.random() * 3}s linear infinite`,
-                  animationDelay: `${Math.random() * 2}s`,
-                  transform: `rotate(${Math.random() * 360}deg)`
-                }}
-              />
-            ))}
-
-            {/* Floating emojis */}
-            <div className="absolute top-4 left-4 text-2xl animate-bounce" style={{ animationDelay: '0.5s' }}>⭐</div>
-            <div className="absolute top-8 right-6 text-xl animate-bounce" style={{ animationDelay: '1s' }}>✨</div>
-            <div className="absolute bottom-8 left-8 text-2xl animate-bounce" style={{ animationDelay: '1.5s' }}>🎯</div>
-            <div className="absolute bottom-4 right-4 text-xl animate-bounce" style={{ animationDelay: '2s' }}>💫</div>
-            <div className="absolute top-1/2 left-6 text-lg animate-pulse" style={{ animationDelay: '0.8s' }}>🎉</div>
-            <div className="absolute top-1/3 right-8 text-lg animate-pulse" style={{ animationDelay: '1.3s' }}>🎆</div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {showLoginCelebration && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/80 backdrop-blur-lg">
+          <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800 max-w-xl w-full mx-4 shadow-2xl animate-in fade-in zoom-in duration-300 relative overflow-hidden">
+            <CardHeader className="text-center pb-6">
+              <div className="mx-auto mb-6 w-28 h-28 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-full flex items-center justify-center shadow-lg animate-bounce">
+                <Shield className="w-14 h-14 text-white" />
+              </div>
+              <CardTitle className="text-4xl font-bold text-white mb-4">
+                🎊 Welcome Back, Champion! 🎊
+              </CardTitle>
+              <CardDescription className="text-gray-300 text-xl leading-relaxed px-4">
+                You've successfully logged into <span className="text-teal-400 font-semibold">DecentraTask</span>. Ready to revolutionize the future of work? 🌟
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0 pb-8">
+              <div className="flex justify-center">
+                <Button
+                  onClick={() => setShowLoginCelebration(false)}
+                  className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white px-10 py-4 text-xl font-semibold shadow-lg hover:shadow-teal-500/25 transition-all duration-200"
+                >
+                  <Zap className="w-6 h-6 mr-3" />
+                  Let's Build Something Amazing!
+                </Button>
+              </div>
+            </CardContent>
+            
+            {/* Subtle floating sparkles */}
+            <div className="absolute top-6 left-6 text-2xl animate-bounce opacity-50 text-teal-400">⭐</div>
+            <div className="absolute top-8 right-8 text-xl animate-bounce opacity-50 text-cyan-400" style={{ animationDelay: '0.5s' }}>✨</div>
+            <div className="absolute bottom-8 left-8 text-xl animate-bounce opacity-50 text-teal-300" style={{ animationDelay: '1s' }}>💫</div>
+            <div className="absolute bottom-6 right-6 text-2xl animate-bounce opacity-50 text-cyan-300" style={{ animationDelay: '1.5s' }}>🌟</div>
+          </Card>
+        </div>
+      )}
     </>
   );
 });
@@ -1263,7 +1252,7 @@ const ProfilePage = () => {
 
       // Show celebration popup with faster timing
       const roleText = newUserType === 'client' ? 'Client' : 'Freelancer';
-      setCelebrationMessage(`🎊 Congratulations! You've successfully switched to ${roleText} mode. ${newUserType === 'client' ? 'You can now post tasks and hire talented freelancers!' : 'You can now browse and apply to exciting projects!'}`);
+      setCelebrationMessage(`Congratulations! You've successfully switched to ${roleText} mode. ${newUserType === 'client' ? 'You can now post tasks and hire talented freelancers!' : 'You can now browse and apply to exciting projects!'}`);
       setShowCelebration(true);
 
       // Auto-hide celebration after 3 seconds (faster)
@@ -1487,29 +1476,34 @@ const ProfilePage = () => {
       </div>
 
       {/* Role Switch Celebration */}
-      <Dialog open={showCelebration} onOpenChange={setShowCelebration}>
-        <DialogContent className="bg-gradient-to-br from-purple-900/90 to-blue-900/90 border-purple-500/50 text-white max-w-md">
-          <DialogHeader className="text-center">
-            <div className="mx-auto mb-4 text-6xl animate-bounce">
-              🎉
-            </div>
-            <DialogTitle className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-              Role Updated Successfully!
-            </DialogTitle>
-            <DialogDescription className="text-gray-200 text-lg">
-              {celebrationMessage}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-center mt-6">
-            <Button
-              onClick={() => setShowCelebration(false)}
-              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8"
-            >
-              Awesome! Let's Go
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {showCelebration && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/80 backdrop-blur-lg">
+          <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800 max-w-lg w-full mx-4 shadow-2xl animate-in fade-in zoom-in duration-300">
+            <CardHeader className="text-center pb-6">
+              <div className="mx-auto mb-6 w-24 h-24 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-full flex items-center justify-center shadow-lg animate-bounce">
+                <CheckCircle className="w-12 h-12 text-white" />
+              </div>
+              <CardTitle className="text-3xl font-bold text-white mb-4">
+                🎉 Role Updated Successfully!
+              </CardTitle>
+              <CardDescription className="text-gray-300 text-lg leading-relaxed">
+                {celebrationMessage}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0 pb-8">
+              <div className="flex justify-center">
+                <Button
+                  onClick={() => setShowCelebration(false)}
+                  className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-teal-500/25 transition-all duration-200"
+                >
+                  <CheckCircle className="w-5 h-5 mr-2" />
+                  Continue
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
