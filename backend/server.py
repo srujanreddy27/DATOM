@@ -508,6 +508,29 @@ async def update_task_status(task_id: str, status: str):
         raise HTTPException(status_code=404, detail="Task not found")
     return {"message": "Task status updated successfully"}
 
+@api_router.put("/tasks/{task_id}/escrow-status")
+async def update_task_escrow_status(task_id: str, escrow_status: str, current_user: User = Depends(get_current_user)):
+    """Update task escrow status (task owner only)"""
+    # Check if task exists
+    task_data = await firebase_db.get_task_by_id(task_id)
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Check if user is the task owner
+    if task_data.get("client") != current_user.username:
+        raise HTTPException(status_code=403, detail="Only task owner can update escrow status")
+    
+    # Validate escrow status
+    valid_statuses = ["pending", "funded", "released"]
+    if escrow_status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid escrow status. Must be one of: {valid_statuses}")
+    
+    success = await firebase_db.update_task(task_id, {"escrow_status": escrow_status})
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update escrow status")
+    
+    return {"message": "Escrow status updated successfully", "escrow_status": escrow_status}
+
 # User Management Routes
 @api_router.post("/users", response_model=User)
 async def create_user(user: UserCreate):
@@ -559,6 +582,10 @@ async def create_submission(
     # Check if task is still open
     if task_data.get("status") != "open":
         raise HTTPException(status_code=400, detail="Task is no longer accepting submissions")
+    
+    # Check if task is funded (escrow status)
+    if task_data.get("escrow_status") != "funded":
+        raise HTTPException(status_code=400, detail="Task must be funded before accepting submissions")
     
     # Check if freelancer has already submitted work
     existing_sub = await firebase_db.check_existing_submission(task_id, current_user.id)
@@ -741,6 +768,10 @@ async def can_submit_to_task(task_id: str, current_user: User = Depends(get_curr
     # Check if task is still open
     if task_data.get("status") != "open":
         return {"can_submit": False, "reason": "Task is no longer accepting submissions"}
+    
+    # Check if task is funded (escrow status)
+    if task_data.get("escrow_status") != "funded":
+        return {"can_submit": False, "reason": "Task must be funded before accepting submissions"}
     
     # Check if user is the task owner
     if task_data.get("client") == current_user.username:

@@ -20,7 +20,7 @@ import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
-const TaskCard = ({ task, onTaskUpdate, currentUser }) => {
+const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
   const [showSubmissionModal, setShowSubmissionModal] = useState(false);
   const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
   const [canSubmit, setCanSubmit] = useState({ can_submit: false, reason: '' });
@@ -141,8 +141,27 @@ const TaskCard = ({ task, onTaskUpdate, currentUser }) => {
       );
     }
 
-    // If user is the task owner (client), show "View Submissions" button
+    // If user is the task owner (client), show appropriate button based on funding status
     if (currentUser.user_type === 'client' && task.client === currentUser.username) {
+      // If task is not funded, show Fund Escrow button
+      if (task.escrowStatus !== 'funded') {
+        return (
+          <Button 
+            size="sm" 
+            onClick={() => {
+              if (onFundTask) {
+                onFundTask(task);
+              } else {
+                alert('Please fund the escrow to activate this task.');
+              }
+            }}
+            className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white"
+          >
+            Fund Escrow
+          </Button>
+        );
+      }
+      
       if (task.status === 'completed') {
         return (
           <Button 
@@ -167,6 +186,20 @@ const TaskCard = ({ task, onTaskUpdate, currentUser }) => {
 
     // For freelancers, show submission-related buttons
     if (currentUser.user_type === 'freelancer') {
+      // If task is not funded, prevent submissions
+      if (task.escrowStatus !== 'funded') {
+        return (
+          <Button 
+            size="sm" 
+            className="bg-gray-600 text-gray-300 cursor-not-allowed"
+            disabled
+            title="Task must be funded before accepting submissions"
+          >
+            Not Funded
+          </Button>
+        );
+      }
+      
       // If task is completed, show appropriate message
       if (task.status === 'completed') {
         return (
@@ -268,10 +301,18 @@ const TaskCard = ({ task, onTaskUpdate, currentUser }) => {
                 {task.description}
               </CardDescription>
             </div>
-            <Badge className={`ml-3 flex items-center space-x-1 ${getStatusColor(task.status)}`}>
-              {getStatusIcon(task.status)}
-              <span className="capitalize">{task.status.replace('_', ' ')}</span>
-            </Badge>
+            <div className="ml-3 flex flex-col items-end space-y-1">
+              <Badge className={`flex items-center space-x-1 ${getStatusColor(task.status)}`}>
+                {getStatusIcon(task.status)}
+                <span className="capitalize">{task.status.replace('_', ' ')}</span>
+              </Badge>
+              {task.escrowStatus !== 'funded' && (
+                <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 text-xs">
+                  <AlertCircle className="w-2 h-2 mr-1" />
+                  Not Funded
+                </Badge>
+              )}
+            </div>
           </div>
 
           {/* Skills */}

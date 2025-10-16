@@ -164,6 +164,25 @@ const isDeadlineInFutureOrToday = (deadlineStr) => {
   return deadline >= today;
 };
 
+// Status helpers
+const getStatusColor = (status) => {
+  switch (status) {
+    case 'open':
+      return 'bg-green-500/20 text-green-400 border-green-500/30';
+    case 'in_progress':
+      return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+    case 'completed':
+      return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+    case 'cancelled':
+      return 'bg-red-500/20 text-red-400 border-red-500/30';
+    default:
+      return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+  }
+};
+
+// ETH Symbol Component
+const EthSymbol = () => <span className="font-bold">Ξ</span>;
+
 // Map API task (snake_case) to UI task (camelCase fields expected by components)
 const mapTaskFromApi = (apiTask) => ({
   id: apiTask.id,
@@ -831,8 +850,6 @@ const FloatingBlockchain = () => {
   );
 };
 
-const EthSymbol = () => <span className="text-emerald-400 mr-1">Ξ</span>;
-
 // Global helper functions
 const getCategoryIcon = (category) => {
   switch (category) {
@@ -842,15 +859,6 @@ const getCategoryIcon = (category) => {
     case "Development": return <Globe className="w-4 h-4" />;
     case "Data Science": return <TrendingUp className="w-4 h-4" />;
     default: return <FileText className="w-4 h-4" />;
-  }
-};
-
-const getStatusColor = (status) => {
-  switch (status) {
-    case "open": return "bg-emerald-500";
-    case "in_progress": return "bg-amber-500";
-    case "completed": return "bg-teal-500";
-    default: return "bg-gray-500";
   }
 };
 
@@ -1450,7 +1458,7 @@ const ProfilePage = () => {
                           </div>
                           <div className="flex items-center gap-1 text-gray-400">
                             <Users className="w-4 h-4" />
-                            <span>{task.applicants} applicants</span>
+                            <span>{task.submissions || 0} submissions</span>
                           </div>
                         </div>
                       </CardContent>
@@ -1560,7 +1568,7 @@ const HomePage = () => {
 
   // Show ALL tasks for real-time statistics (cumulative data from all users)
   const totalTasks = homeTasks.length;
-  const liveTasksCount = homeTasks.filter(t => isDeadlineInFutureOrToday(t.deadline)).length;
+  const liveTasksCount = homeTasks.filter(t => t.status !== "completed" && isDeadlineInFutureOrToday(t.deadline)).length;
   const totalPaidEth = homeTasks
     .filter(t => t.escrowStatus === 'funded')
     .reduce((sum, t) => sum + (Number(t.budget) || 0), 0) * 1000; // Convert 0.001 ETH to 1 ETH (multiply by 1e3)
@@ -1670,6 +1678,11 @@ const TasksPage = () => {
   // Consume one-time flash message from navigation state
   useEffect(() => {
     if (location?.state?.flash) {
+      // If there's a specific task to highlight for funding, we could add that logic here
+      if (location?.state?.showFundEscrow && location?.state?.taskId) {
+        // Could highlight the specific task that needs funding
+        console.log('Task needs funding:', location.state.taskId);
+      }
       // Clear state so it doesn't persist on refresh/back
       navigate(location.pathname, { replace: true, state: {} });
     }
@@ -1692,8 +1705,8 @@ const TasksPage = () => {
     return () => clearInterval(id);
   }, []);
 
-  const liveTasks = filteredTasks.filter(t => isDeadlineInFutureOrToday(t.deadline));
-  const finishedTasks = filteredTasks.filter(t => !isDeadlineInFutureOrToday(t.deadline));
+  const liveTasks = filteredTasks.filter(t => t.status !== "completed" && isDeadlineInFutureOrToday(t.deadline));
+  const finishedTasks = filteredTasks.filter(t => t.status === "completed" || !isDeadlineInFutureOrToday(t.deadline));
 
   const onFundTask = async (task) => {
     try {
@@ -1752,6 +1765,16 @@ const TasksPage = () => {
           localStorage.setItem('fundedTaskIds', JSON.stringify(funded));
         }
       } catch { }
+
+      // Update escrow status in backend
+      try {
+        const firebaseToken = localStorage.getItem('firebase_token');
+        await axios.put(`${API}/tasks/${task.id}/escrow-status?escrow_status=funded`, {}, {
+          headers: { 'Authorization': `Bearer ${firebaseToken}` }
+        });
+      } catch (error) {
+        console.error('Failed to update escrow status in backend:', error);
+      }
 
       // Update client's total spending
       if (user && user.user_type === 'client') {
@@ -1875,6 +1898,7 @@ const TasksPage = () => {
                   setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
                 }}
                 currentUser={user}
+                onFundTask={onFundTask}
               />
             ))}
           </div>
@@ -1898,6 +1922,7 @@ const TasksPage = () => {
                   setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
                 }}
                 currentUser={user}
+                onFundTask={onFundTask}
               />
             ))}
           </div>
@@ -2042,6 +2067,8 @@ const PostTaskPage = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
+    let createdTask = null;
+    
     try {
       const payload = {
         title: formData.title,
@@ -2052,21 +2079,51 @@ const PostTaskPage = () => {
         client: formData.client,
         skills: formData.skills,
       };
-      // Create on backend
+      
+      // Create task on backend first
       const { data: created } = await axios.post(`${API}/tasks`, payload);
+      createdTask = created;
 
-      // Pay ETH to escrow on Anvil local network
+      // Try to pay ETH to escrow
       if (!window.ethereum) {
-        throw new Error("MetaMask not found. Install MetaMask to pay in ETH.");
+        // Task created but payment failed - redirect to fund escrow
+        navigate('/tasks', { 
+          state: { 
+            flash: 'Task created successfully! Please fund the escrow to activate it.',
+            showFundEscrow: true,
+            taskId: created.id
+          } 
+        });
+        return;
       }
 
       // Use connected wallet automatically
       const accounts = await window.ethereum.request({ method: "eth_accounts" });
       if (accounts.length === 0) {
         // Try to connect wallet if not connected
-        const newAccounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-        if (newAccounts.length === 0) {
-          throw new Error("Please connect your wallet first.");
+        try {
+          const newAccounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+          if (newAccounts.length === 0) {
+            // Task created but wallet not connected - redirect to fund escrow
+            navigate('/tasks', { 
+              state: { 
+                flash: 'Task created successfully! Please connect your wallet and fund the escrow to activate it.',
+                showFundEscrow: true,
+                taskId: created.id
+              } 
+            });
+            return;
+          }
+        } catch (walletError) {
+          // Task created but wallet connection failed - redirect to fund escrow
+          navigate('/tasks', { 
+            state: { 
+              flash: 'Task created successfully! Please connect your wallet and fund the escrow to activate it.',
+              showFundEscrow: true,
+              taskId: created.id
+            } 
+          });
+          return;
         }
       }
 
@@ -2088,58 +2145,89 @@ const PostTaskPage = () => {
             }],
           });
         } else {
-          throw switchError;
+          // Network switch failed - redirect to fund escrow
+          navigate('/tasks', { 
+            state: { 
+              flash: 'Task created successfully! Please switch to the correct network and fund the escrow to activate it.',
+              showFundEscrow: true,
+              taskId: created.id
+            } 
+          });
+          return;
         }
       }
 
-      // Using selected source address and fixed escrow destination: 0x2Ef18250a69D9Fa3492Ff7098604E7b7e62E3Fd4
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner(selectedAccount);
-      const valueWei = ethers.parseEther(String(payload.budget));
-      const tx = await signer.sendTransaction({
-        from: selectedAccount,
-        to: ESCROW_ADDRESS,
-        value: valueWei
-      });
-      await tx.wait();
-      // Persist as funded locally for immediate UX
+      // Try to send payment transaction
       try {
-        const funded = JSON.parse(localStorage.getItem('fundedTaskIds') || '[]');
-        if (created?.id && !funded.includes(created.id)) {
-          funded.push(created.id);
-          localStorage.setItem('fundedTaskIds', JSON.stringify(funded));
-        }
-      } catch { }
-
-      // Update client's total spending
-      try {
-        const firebaseToken = localStorage.getItem('firebase_token');
-        await axios.put(`${API}/users/${user.id}/payment`,
-          { amount: payload.budget },
-          {
-            headers: { 'Authorization': `Bearer ${firebaseToken}` }
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner(selectedAccount);
+        const valueWei = ethers.parseEther(String(payload.budget));
+        const tx = await signer.sendTransaction({
+          from: selectedAccount,
+          to: ESCROW_ADDRESS,
+          value: valueWei
+        });
+        await tx.wait();
+        
+        // Payment successful - mark as funded locally
+        try {
+          const funded = JSON.parse(localStorage.getItem('fundedTaskIds') || '[]');
+          if (created?.id && !funded.includes(created.id)) {
+            funded.push(created.id);
+            localStorage.setItem('fundedTaskIds', JSON.stringify(funded));
           }
-        );
-      } catch (error) {
-        console.error('Failed to update client spending:', error);
+        } catch { }
+
+        // Update escrow status in backend
+        try {
+          const firebaseToken = localStorage.getItem('firebase_token');
+          await axios.put(`${API}/tasks/${created.id}/escrow-status?escrow_status=funded`, {}, {
+            headers: { 'Authorization': `Bearer ${firebaseToken}` }
+          });
+        } catch (error) {
+          console.error('Failed to update escrow status in backend:', error);
+        }
+
+        // Update client's total spending
+        try {
+          const firebaseToken = localStorage.getItem('firebase_token');
+          await axios.put(`${API}/users/${user.id}/payment`,
+            { amount: payload.budget },
+            {
+              headers: { 'Authorization': `Bearer ${firebaseToken}` }
+            }
+          );
+        } catch (error) {
+          console.error('Failed to update client spending:', error);
+        }
+        
+        // Payment successful - redirect with success message
+        setFormData({
+          title: "",
+          description: "",
+          category: "",
+          budget: "",
+          deadline: "",
+          skills: [],
+          client: user?.username || ""
+        });
+        navigate('/tasks', { state: { flash: 'Task posted and funded successfully!' } });
+        
+      } catch (paymentError) {
+        console.error("Payment failed:", paymentError);
+        // Task created but payment failed - redirect to fund escrow
+        navigate('/tasks', { 
+          state: { 
+            flash: 'Task created successfully! Payment failed - please fund the escrow to activate it.',
+            showFundEscrow: true,
+            taskId: created.id
+          } 
+        });
       }
-      // Redirect with success flash
-      setFormData({
-        title: "",
-        description: "",
-        category: "",
-        budget: "",
-        deadline: "",
-        skills: [],
-        client: user?.username || ""
-      });
-      navigate('/tasks', { state: { flash: 'Task posted successfully. Escrow paid.' } });
 
     } catch (error) {
-      console.error("Error submitting task:", error);
-      alert(`Failed to post task: ${error.message}`);
-      // Redirect to browse tasks even on failure
-      navigate('/tasks', { state: { flash: 'Task posting failed. Please try again.' } });
+      console.error("Error creating task:", error);
+      alert(`Failed to create task: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
