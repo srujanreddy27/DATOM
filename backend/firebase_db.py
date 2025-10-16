@@ -30,6 +30,7 @@ TASKS_COLLECTION = 'tasks'
 SUBMISSIONS_COLLECTION = 'submissions'
 AUTH_USERS_COLLECTION = 'auth_users'
 ESCROW_TRANSACTIONS_COLLECTION = 'escrow_transactions'
+PAYMENT_CLAIMS_COLLECTION = 'payment_claims'
 
 class FirebaseDB:
     def __init__(self):
@@ -41,6 +42,7 @@ class FirebaseDB:
         self.memory_submissions = []
         self.memory_auth_users = []
         self.memory_escrow_transactions = []
+        self.memory_payment_claims = []
         
         if self.use_memory:
             logger.warning("Using in-memory storage as Firestore is not available")
@@ -470,6 +472,84 @@ class FirebaseDB:
         except Exception as e:
             logger.error(f"Failed to get approved submission: {e}")
             return None
+
+    # Payment claim operations
+    async def save_payment_claim(self, claim_data: dict) -> bool:
+        """Save payment claim to Firestore"""
+        try:
+            if self.db:
+                prepared_data = self.prepare_for_firestore(claim_data)
+                doc_ref = self.db.collection(PAYMENT_CLAIMS_COLLECTION).document(claim_data['id'])
+                doc_ref.set(prepared_data)
+                logger.info(f"Payment claim saved to Firestore: {claim_data['id']}")
+                return True
+            else:
+                # Fallback to memory
+                self.memory_payment_claims.append(claim_data)
+                logger.info(f"Payment claim saved to memory: {claim_data['id']}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to save payment claim: {e}")
+            return False
+
+    async def get_payment_claim_by_id(self, claim_id: str) -> Optional[dict]:
+        """Get payment claim by ID"""
+        try:
+            if self.db:
+                doc_ref = self.db.collection(PAYMENT_CLAIMS_COLLECTION).document(claim_id)
+                doc = doc_ref.get()
+                if doc.exists:
+                    return doc.to_dict()
+                return None
+            else:
+                # Fallback to memory
+                for claim in self.memory_payment_claims:
+                    if claim.get('id') == claim_id:
+                        return claim
+                return None
+        except Exception as e:
+            logger.error(f"Failed to get payment claim by ID: {e}")
+            return None
+
+    async def get_payment_claims_by_freelancer_id(self, freelancer_id: str) -> List[dict]:
+        """Get all payment claims by a specific freelancer"""
+        try:
+            if self.db:
+                claims_ref = self.db.collection(PAYMENT_CLAIMS_COLLECTION)
+                query = claims_ref.where('freelancer_id', '==', freelancer_id)
+                docs = query.stream()
+                claims = []
+                for doc in docs:
+                    claim_data = doc.to_dict()
+                    claims.append(claim_data)
+                return claims
+            else:
+                # Fallback to memory
+                return [claim for claim in self.memory_payment_claims if claim.get('freelancer_id') == freelancer_id]
+        except Exception as e:
+            logger.error(f"Failed to get payment claims by freelancer ID: {e}")
+            return []
+
+    async def update_payment_claim(self, claim_id: str, update_data: dict) -> bool:
+        """Update payment claim data"""
+        try:
+            if self.db:
+                doc_ref = self.db.collection(PAYMENT_CLAIMS_COLLECTION).document(claim_id)
+                prepared_data = self.prepare_for_firestore(update_data)
+                doc_ref.update(prepared_data)
+                logger.info(f"Payment claim updated in Firestore: {claim_id}")
+                return True
+            else:
+                # Fallback to memory
+                for i, claim in enumerate(self.memory_payment_claims):
+                    if claim.get('id') == claim_id:
+                        self.memory_payment_claims[i].update(update_data)
+                        logger.info(f"Payment claim updated in memory: {claim_id}")
+                        return True
+                return False
+        except Exception as e:
+            logger.error(f"Failed to update payment claim: {e}")
+            return False
 
     # Escrow transaction operations
     async def save_escrow_transaction(self, escrow_data: dict) -> bool:

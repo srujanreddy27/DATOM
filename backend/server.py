@@ -15,6 +15,9 @@ from firebase_auth import initialize_firebase
 from firebase_hybrid_auth import verify_firebase_token_hybrid
 from firebase_db import firebase_db
 import logging
+from web3 import Web3
+from eth_account import Account
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +132,21 @@ class Submission(BaseModel):
     status: str = "pending"  # pending, approved, rejected
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     approved_at: Optional[datetime] = None
+    payment_claimable: bool = False  # True when freelancer can claim payment
+    payment_claimed: bool = False  # True when payment has been claimed
+    payment_claimed_at: Optional[datetime] = None
+
+class PaymentClaim(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    submission_id: str
+    task_id: str
+    freelancer_id: str
+    freelancer_wallet: str
+    amount: float
+    status: str = "pending"  # pending, completed, failed
+    transaction_hash: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    completed_at: Optional[datetime] = None
 
 # ---------------- Authentication Models/Setup ----------------
 class SignupRequest(BaseModel):
@@ -163,6 +181,95 @@ CHAIN_ID = int(os.environ.get("CHAIN_ID", "31337"))
 CHAIN_ID_HEX = os.environ.get("CHAIN_ID_HEX", "0x7a69")
 CURRENCY_SYMBOL = os.environ.get("CURRENCY_SYMBOL", "ETH")
 ESCROW_ADDRESS = os.environ.get("ESCROW_ADDRESS", "0xA54130603Aed8B222f9BE8F22F4F8ED458505A27")
+
+# Blockchain Configuration
+w3 = Web3(Web3.HTTPProvider(RPC_URL))
+
+# Private key for escrow contract (in production, use secure key management)
+ESCROW_PRIVATE_KEY = os.environ.get("ESCROW_PRIVATE_KEY", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")  # Anvil default account #0
+escrow_account = Account.from_key(ESCROW_PRIVATE_KEY)
+
+# Simple escrow contract ABI (for basic ETH transfers)
+ESCROW_ABI = [
+    {
+        "inputs": [{"name": "_to", "type": "address"}],
+        "name": "release",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getBalance",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]
+
+def get_escrow_contract():
+    """Get escrow contract instance"""
+    try:
+        return w3.eth.contract(address=ESCROW_ADDRESS, abi=ESCROW_ABI)
+    except Exception as e:
+        logger.error(f"Failed to get escrow contract: {e}")
+        return None
+
+async def transfer_from_escrow(to_address: str, amount_eth: float) -> dict:
+    """Transfer ETH from escrow to freelancer wallet"""
+    try:
+        # Validate connection
+        if not w3.is_connected():
+            raise Exception("Not connected to blockchain network")
+        
+        # Convert ETH to Wei
+        amount_wei = w3.to_wei(amount_eth, 'ether')
+        
+        # Get current gas price
+        gas_price = w3.eth.gas_price
+        
+        # Build transaction
+        transaction = {
+            'to': to_address,
+            'value': amount_wei,
+            'gas': 21000,  # Standard gas limit for ETH transfer
+            'gasPrice': gas_price,
+            'nonce': w3.eth.get_transaction_count(escrow_account.address),
+            'chainId': CHAIN_ID
+        }
+        
+        # Sign transaction
+        signed_txn = w3.eth.account.sign_transaction(transaction, ESCROW_PRIVATE_KEY)
+        
+        # Send transaction
+        tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        
+        # Wait for confirmation
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
+        
+        return {
+            "success": True,
+            "transaction_hash": receipt.transactionHash.hex(),
+            "block_number": receipt.blockNumber,
+            "gas_used": receipt.gasUsed,
+            "status": receipt.status
+        }
+        
+    except Exception as e:
+        logger.error(f"Blockchain transfer failed: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+async def get_escrow_balance() -> float:
+    """Get current escrow balance in ETH"""
+    try:
+        balance_wei = w3.eth.get_balance(escrow_account.address)
+        return w3.from_wei(balance_wei, 'ether')
+    except Exception as e:
+        logger.error(f"Failed to get escrow balance: {e}")
+        return 0.0
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -572,10 +679,11 @@ async def approve_submission(
     if existing_approved and existing_approved["id"] != submission_id:
         raise HTTPException(status_code=400, detail="Task already has an approved submission")
     
-    # Update submission status to approved
+    # Update submission status to approved and make payment claimable
     success = await firebase_db.update_submission(submission_id, {
         "status": "approved",
-        "approved_at": datetime.now(timezone.utc)
+        "approved_at": datetime.now(timezone.utc),
+        "payment_claimable": True
     })
     if not success:
         raise HTTPException(status_code=500, detail="Failed to approve submission")
@@ -589,18 +697,7 @@ async def approve_submission(
         if other_sub["id"] != submission_id and other_sub.get("status") == "pending":
             await firebase_db.update_submission(other_sub["id"], {"status": "rejected"})
     
-    # Update freelancer earnings
-    freelancer_id = sub_data["freelancer_id"]
-    task_budget = task_data.get("budget", 0)
-    try:
-        await firebase_db.update_user(freelancer_id, {
-            "total_earnings": task_budget,  # This should be incremented in a real system
-            "completed_tasks": 1  # This should also be incremented
-        })
-    except Exception as e:
-        logger.warning(f"Failed to update freelancer earnings: {e}")
-    
-    return {"message": "Submission approved and funds released", "status": "approved"}
+    return {"message": "Submission approved - payment now claimable by freelancer", "status": "approved"}
 
 @api_router.put("/submissions/{submission_id}/reject")
 async def reject_submission(
@@ -719,6 +816,173 @@ async def download_file_with_token(file_path: str, token: str):
     except Exception as e:
         logger.error(f"File download error: {e}")
         raise HTTPException(status_code=401, detail="Authentication failed")
+
+# Payment Claim Routes
+@api_router.post("/payments/claim")
+async def claim_payment(
+    submission_id: str = Form(...),
+    wallet_address: str = Form(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Claim payment for approved submission"""
+    # Only freelancers can claim payments
+    if current_user.user_type != "freelancer":
+        raise HTTPException(status_code=403, detail="Only freelancers can claim payments")
+    
+    # Get submission
+    sub_data = await firebase_db.get_submission_by_id(submission_id)
+    if not sub_data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    # Check if user owns this submission
+    if sub_data["freelancer_id"] != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only claim payment for your own submissions")
+    
+    # Check if submission is approved and payment is claimable
+    if sub_data.get("status") != "approved":
+        raise HTTPException(status_code=400, detail="Submission must be approved to claim payment")
+    
+    if not sub_data.get("payment_claimable", False):
+        raise HTTPException(status_code=400, detail="Payment is not yet claimable")
+    
+    if sub_data.get("payment_claimed", False):
+        raise HTTPException(status_code=400, detail="Payment has already been claimed")
+    
+    # Validate wallet address format (basic validation)
+    if not wallet_address.startswith("0x") or len(wallet_address) != 42:
+        raise HTTPException(status_code=400, detail="Invalid wallet address format")
+    
+    # Get task data for payment amount
+    task_data = await firebase_db.get_task_by_id(sub_data["task_id"])
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    payment_amount = task_data.get("budget", 0)
+    
+    # Create payment claim record
+    claim_data = {
+        "id": str(uuid.uuid4()),
+        "submission_id": submission_id,
+        "task_id": sub_data["task_id"],
+        "freelancer_id": current_user.id,
+        "freelancer_wallet": wallet_address,
+        "amount": payment_amount,
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc)
+    }
+    
+    # Save payment claim
+    success = await firebase_db.save_payment_claim(claim_data)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to create payment claim")
+    
+    # Mark submission as payment claimed
+    await firebase_db.update_submission(submission_id, {
+        "payment_claimed": True,
+        "payment_claimed_at": datetime.now(timezone.utc)
+    })
+    
+    # Execute real blockchain transfer
+    logger.info(f"Initiating blockchain transfer: {payment_amount} ETH to {wallet_address}")
+    
+    transfer_result = await transfer_from_escrow(wallet_address, payment_amount)
+    
+    if not transfer_result["success"]:
+        # Update claim status to failed
+        await firebase_db.update_payment_claim(claim_data["id"], {
+            "status": "failed",
+            "error": transfer_result.get("error", "Unknown error")
+        })
+        raise HTTPException(status_code=500, detail=f"Blockchain transfer failed: {transfer_result.get('error')}")
+    
+    # Update payment claim with successful transaction
+    await firebase_db.update_payment_claim(claim_data["id"], {
+        "status": "completed",
+        "transaction_hash": transfer_result["transaction_hash"],
+        "completed_at": datetime.now(timezone.utc)
+    })
+    
+    # Update freelancer earnings
+    try:
+        current_earnings = current_user.total_earnings or 0
+        await firebase_db.update_user(current_user.id, {
+            "total_earnings": current_earnings + payment_amount,
+            "completed_tasks": (current_user.completed_tasks or 0) + 1
+        })
+    except Exception as e:
+        logger.warning(f"Failed to update freelancer earnings: {e}")
+    
+    logger.info(f"Payment completed successfully: {transfer_result['transaction_hash']}")
+    
+    return {
+        "message": "Payment transferred successfully to your wallet",
+        "claim_id": claim_data["id"],
+        "amount": payment_amount,
+        "wallet_address": wallet_address,
+        "transaction_hash": transfer_result["transaction_hash"],
+        "block_number": transfer_result.get("block_number"),
+        "gas_used": transfer_result.get("gas_used")
+    }
+
+@api_router.get("/payments/my-claims", response_model=List[PaymentClaim])
+async def get_my_payment_claims(current_user: User = Depends(get_current_user)):
+    """Get all payment claims by the current user"""
+    if current_user.user_type != "freelancer":
+        raise HTTPException(status_code=403, detail="Only freelancers can view payment claims")
+    
+    claims_data = await firebase_db.get_payment_claims_by_freelancer_id(current_user.id)
+    claims = [PaymentClaim(**claim_data) for claim_data in claims_data]
+    
+    return claims
+
+@api_router.get("/submissions/{submission_id}/payment-status")
+async def get_submission_payment_status(submission_id: str, current_user: User = Depends(get_current_user)):
+    """Check if submission payment can be claimed"""
+    # Get submission
+    sub_data = await firebase_db.get_submission_by_id(submission_id)
+    if not sub_data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    # Check if user has permission to view this submission
+    if sub_data["freelancer_id"] != current_user.id:
+        # Check if user is the task owner
+        task_data = await firebase_db.get_task_by_id(sub_data["task_id"])
+        if not task_data or task_data.get("client") != current_user.username:
+            raise HTTPException(status_code=403, detail="Not authorized to view this submission")
+    
+    return {
+        "submission_id": submission_id,
+        "status": sub_data.get("status"),
+        "payment_claimable": sub_data.get("payment_claimable", False),
+        "payment_claimed": sub_data.get("payment_claimed", False),
+        "payment_claimed_at": sub_data.get("payment_claimed_at"),
+        "approved_at": sub_data.get("approved_at")
+    }
+
+@api_router.get("/blockchain/status")
+async def get_blockchain_status():
+    """Get blockchain connection status and escrow balance"""
+    try:
+        is_connected = w3.is_connected()
+        escrow_balance = await get_escrow_balance() if is_connected else 0.0
+        latest_block = w3.eth.block_number if is_connected else 0
+        
+        return {
+            "connected": is_connected,
+            "network": NETWORK_NAME,
+            "chain_id": CHAIN_ID,
+            "rpc_url": RPC_URL,
+            "escrow_address": escrow_account.address,
+            "escrow_balance_eth": float(escrow_balance),
+            "latest_block": latest_block,
+            "currency_symbol": CURRENCY_SYMBOL
+        }
+    except Exception as e:
+        logger.error(f"Blockchain status check failed: {e}")
+        return {
+            "connected": False,
+            "error": str(e)
+        }
 
 # ---------------- Authentication Routes ----------------
 @api_router.post("/auth/signup", response_model=TokenResponse)

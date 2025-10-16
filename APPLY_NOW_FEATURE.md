@@ -7,15 +7,17 @@ This is a task outsourcing platform where freelancers submit completed work dire
 ## Features
 
 ### For Freelancers
-- **Submit Completed Work**: Upload files, provide demo URLs, and describe completed work
+- **Submit Completed Work**: Upload files and describe completed work
 - **Submission Management**: View all submitted work with status tracking
 - **Prevent Duplicate Submissions**: System prevents submitting work twice for the same task
 - **Real-time Status Updates**: See when submissions are pending, approved, or rejected
+- **Payment Claims**: Claim payments directly to their wallet when work is approved
 
 ### For Clients
 - **Review Submissions**: View all completed work submitted for their tasks
-- **Approve Best Work**: Select and approve the best submission to release escrow funds
+- **Approve Best Work**: Select and approve the best submission to make payment claimable
 - **Automatic Task Completion**: Tasks automatically close when work is approved
+- **Escrow Management**: Funds are held in escrow until freelancer claims payment
 
 ## Backend Implementation
 
@@ -30,9 +32,14 @@ This is a task outsourcing platform where freelancers submit completed work dire
 - `GET /api/submissions/my-submissions` - Get freelancer's submissions
 - `GET /api/submissions/task/{task_id}` - Get submissions for a task (task owner only)
 - `GET /api/submissions/{submission_id}` - Get specific submission details
-- `PUT /api/submissions/{submission_id}/approve` - Approve submission and release funds (task owner only)
+- `PUT /api/submissions/{submission_id}/approve` - Approve submission and make payment claimable (task owner only)
 - `PUT /api/submissions/{submission_id}/reject` - Reject submission (task owner only)
 - `GET /api/tasks/{task_id}/can-submit` - Check if user can submit work for a task
+
+#### Payment Management
+- `POST /api/payments/claim` - Claim payment for approved submission (freelancers only)
+- `GET /api/payments/my-claims` - Get freelancer's payment claims
+- `GET /api/submissions/{submission_id}/payment-status` - Check payment claim status
 
 #### Enhanced Features
 - Automatic submission count updates
@@ -62,6 +69,14 @@ This is a task outsourcing platform where freelancers submit completed work dire
 - Submission history with downloadable files
 - Status-based color coding
 - Direct file download links
+- Payment claim buttons for approved work
+- Payment status tracking and history
+
+#### PaymentClaimModal
+- Secure wallet address input with validation
+- Payment amount display and confirmation
+- Transaction processing with real-time feedback
+- Transaction hash tracking for verification
 
 #### TaskSubmissions
 - Client-side submission review interface
@@ -87,15 +102,16 @@ This is a task outsourcing platform where freelancers submit completed work dire
    - Upload completed files directly
 5. Submit completed work
 6. Track submission status in "My Submissions"
-7. Receive payment when work is approved
+7. Claim payment to wallet when work is approved
 
 ### Client Workflow
 1. Post a task with clear requirements
 2. Wait for freelancers to submit completed work
 3. Review all submissions with downloadable files
 4. Approve the best submission
-5. Funds automatically released from escrow
+5. Payment becomes claimable by freelancer
 6. Task automatically marked as completed
+7. Freelancer claims payment to their wallet
 
 ## Security Features
 
@@ -105,6 +121,9 @@ This is a task outsourcing platform where freelancers submit completed work dire
 - **Duplicate Prevention**: System prevents multiple submissions to same task
 - **Input Validation**: All form inputs are validated on both frontend and backend
 - **Secure File Handling**: Direct file uploads with type and size validation
+- **Escrow Protection**: Funds held securely until freelancer claims payment
+- **Wallet Integration**: Direct payment to freelancer's Ethereum wallet
+- **Transaction Tracking**: Full audit trail of all payment claims
 
 ## Database Schema
 
@@ -147,6 +166,22 @@ The system includes comprehensive testing:
 
 ## Future Enhancements
 
+## 🚀 **Real Blockchain Integration**
+
+**Live Ethereum Transfers:**
+- ✅ **Real ETH Transactions** - No simulation, actual blockchain transfers
+- ✅ **Anvil Test Network** - Connected to your local Foundry test network
+- ✅ **Smart Contract Ready** - Prepared for production escrow contracts
+- ✅ **Transaction Verification** - Real transaction hashes and block confirmations
+- ✅ **Gas Optimization** - Efficient gas usage for cost-effective transfers
+
+**Security Features:**
+- Private key management for escrow account
+- Transaction signing and verification
+- Block confirmation waiting
+- Error handling and retry logic
+- Balance checking before transfers
+
 Potential future improvements:
 - Real-time notifications for submission status changes
 - File preview without download (for images/PDFs)
@@ -154,7 +189,8 @@ Potential future improvements:
 - Bulk submission management tools
 - Advanced filtering and search capabilities
 - Submission rating and feedback system
-- Cloud storage integration (AWS S3, Google Drive)
+- Multi-token support (USDC, DAI, etc.)
+- Mainnet deployment with production escrow contracts
 
 ## Installation & Setup
 
@@ -186,4 +222,4 @@ PUT /api/submissions/sub-456/approve
 Authorization: Bearer <firebase-token>
 ```
 
-This platform provides a complete task outsourcing system where freelancers compete by submitting their best work, and clients can easily review and approve the best submissions. This eliminates the need for pre-selection and ensures clients get quality deliverables.
+This platform provides a complete task outsourcing system with real blockchain escrow integration. Freelancers compete by submitting their best work, clients approve submissions, and payments are automatically transferred via Ethereum smart contracts to freelancer wallets.

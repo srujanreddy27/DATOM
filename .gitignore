@@ -89,3 +89,4 @@ android-sdk/ -e
 *.env
 # Firebase
 backend/firebase-service-account-key.json
+backend/uploads/

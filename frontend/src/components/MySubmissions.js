@@ -13,9 +13,11 @@ import {
   AlertCircle,
   Briefcase,
   ExternalLink,
-  Upload
+  Upload,
+  Wallet
 } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
+import PaymentClaimModal from './PaymentClaimModal';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -24,6 +26,10 @@ const MySubmissions = ({ currentUser }) => {
   const [submissions, setSubmissions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [tasks, setTasks] = useState({});
 
   useEffect(() => {
     if (currentUser && currentUser.user_type === 'freelancer') {
@@ -47,6 +53,24 @@ const MySubmissions = ({ currentUser }) => {
       });
 
       setSubmissions(response.data);
+      
+      // Fetch task details for each submission
+      const taskIds = [...new Set(response.data.map(sub => sub.task_id))];
+      const taskPromises = taskIds.map(async (taskId) => {
+        try {
+          const taskResponse = await axios.get(`${BACKEND_URL}/api/tasks/${taskId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          return { [taskId]: taskResponse.data };
+        } catch (error) {
+          console.error(`Error fetching task ${taskId}:`, error);
+          return { [taskId]: null };
+        }
+      });
+      
+      const taskResults = await Promise.all(taskPromises);
+      const tasksMap = taskResults.reduce((acc, taskObj) => ({ ...acc, ...taskObj }), {});
+      setTasks(tasksMap);
     } catch (error) {
       console.error('Error fetching submissions:', error);
       if (error.response?.data?.detail) {
@@ -91,6 +115,27 @@ const MySubmissions = ({ currentUser }) => {
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString();
+  };
+
+  const handleClaimPayment = (submission) => {
+    const task = tasks[submission.task_id];
+    if (task) {
+      setSelectedSubmission(submission);
+      setSelectedTask(task);
+      setShowPaymentModal(true);
+    }
+  };
+
+  const handlePaymentClaimed = (submissionId) => {
+    // Update the submission status locally
+    setSubmissions(prev => 
+      prev.map(sub => 
+        sub.id === submissionId 
+          ? { ...sub, payment_claimed: true, payment_claimed_at: new Date().toISOString() }
+          : sub
+      )
+    );
+    setShowPaymentModal(false);
   };
 
   const SubmissionCard = ({ submission }) => (
@@ -167,8 +212,42 @@ const MySubmissions = ({ currentUser }) => {
           )}
         </div>
 
+        {/* Payment Status and Action */}
+        {submission.status === 'approved' && (
+          <div className="mt-4 pt-3 border-t border-gray-700">
+            {submission.payment_claimed ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-sm text-green-400">Payment Claimed</span>
+                </div>
+                <span className="text-xs text-gray-400">
+                  {formatDate(submission.payment_claimed_at)}
+                </span>
+              </div>
+            ) : submission.payment_claimable ? (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-teal-400">Payment Ready to Claim</span>
+                <Button
+                  size="sm"
+                  onClick={() => handleClaimPayment(submission)}
+                  className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white"
+                >
+                  <Wallet className="w-3 h-3 mr-1" />
+                  Claim {tasks[submission.task_id]?.budget || 0} ETH
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4 text-yellow-400" />
+                <span className="text-sm text-yellow-400">Payment Processing</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Task ID for reference */}
-        <div className="text-xs text-gray-500 border-t border-gray-700 pt-2 mt-4">
+        <div className="text-xs text-gray-500 border-t border-gray-700 pt-2 mt-2">
           Task ID: {submission.task_id}
         </div>
       </CardContent>
@@ -294,6 +373,15 @@ const MySubmissions = ({ currentUser }) => {
           </TabsContent>
         </Tabs>
       )}
+
+      {/* Payment Claim Modal */}
+      <PaymentClaimModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        submission={selectedSubmission}
+        task={selectedTask}
+        onPaymentClaimed={handlePaymentClaimed}
+      />
     </div>
   );
 };
