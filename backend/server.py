@@ -78,7 +78,7 @@ class Task(BaseModel):
     budget: float
     deadline: str
     client: str
-    client_rating: float = 4.5
+    client_rating: float = 5
     status: str = "open"
     submissions: int = 0
     skills: List[str] = []
