@@ -1,7 +1,8 @@
 import os
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 import firebase_admin
 from firebase_admin import firestore
 from firebase_auth import initialize_firebase
@@ -31,6 +32,7 @@ SUBMISSIONS_COLLECTION = 'submissions'
 AUTH_USERS_COLLECTION = 'auth_users'
 ESCROW_TRANSACTIONS_COLLECTION = 'escrow_transactions'
 PAYMENT_CLAIMS_COLLECTION = 'payment_claims'
+OTP_COLLECTION = 'otp_codes'
 
 class FirebaseDB:
     def __init__(self):
@@ -43,6 +45,7 @@ class FirebaseDB:
         self.memory_auth_users = []
         self.memory_escrow_transactions = []
         self.memory_payment_claims = []
+        self.memory_otp_codes = []
         
         if self.use_memory:
             logger.warning("Using in-memory storage as Firestore is not available")
@@ -301,22 +304,36 @@ class FirebaseDB:
         """Upsert auth record by email"""
         try:
             email_l = email.lower()
+            logger.info(f"🔐 Upserting auth record for {email_l}, user_id: {user_id}, has_password: {hashed_password is not None}")
+            
             existing = await self.get_auth_record_by_email(email_l)
+            logger.info(f"🔐 Existing auth record found: {existing is not None}")
             
             if existing:
                 # Update existing record
                 update_data = {"user_id": user_id}
                 if hashed_password:
                     update_data["hashed_password"] = hashed_password
+                    logger.info(f"🔐 Updating password for existing record: {existing['id']}")
                 
                 if self.db:
                     doc_ref = self.db.collection(AUTH_USERS_COLLECTION).document(existing['id'])
                     doc_ref.update(update_data)
+                    logger.info(f"🔐 Updated auth record in Firestore: {existing['id']}")
+                    
+                    # Verify the update
+                    updated_doc = doc_ref.get()
+                    if updated_doc.exists:
+                        updated_data = updated_doc.to_dict()
+                        logger.info(f"🔐 Verified update - password hash length: {len(updated_data.get('hashed_password', ''))}")
+                    else:
+                        logger.error(f"❌ Failed to verify auth record update")
                 else:
                     # Update in memory
                     for record in self.memory_auth_users:
                         if record.get('email') == email_l:
                             record.update(update_data)
+                            logger.info(f"🔐 Updated auth record in memory for {email_l}")
                             break
                 
                 return {**existing, **update_data}
@@ -329,11 +346,14 @@ class FirebaseDB:
                     "user_id": user_id,
                     "hashed_password": hashed_password
                 }
+                logger.info(f"🔐 Creating new auth record for {email_l}")
                 await self.save_auth_record(record)
                 return record
                 
         except Exception as e:
-            logger.error(f"Failed to upsert auth record: {e}")
+            logger.error(f"❌ Failed to upsert auth record: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return {}
 
     # Submission operations
@@ -569,6 +589,166 @@ class FirebaseDB:
         except Exception as e:
             logger.error(f"Failed to save escrow transaction: {e}")
             return False
+
+    # OTP operations
+    async def save_otp(self, email: str, otp: str, expires_at: datetime) -> bool:
+        """Save OTP code for password reset"""
+        try:
+            # Ensure expires_at is timezone-aware
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+                
+            otp_data = {
+                'email': email.lower(),
+                'otp': otp,
+                'expires_at': expires_at,
+                'created_at': datetime.now(timezone.utc),
+                'used': False
+            }
+            
+            logger.info(f"💾 Attempting to save OTP for {email}: {otp}")
+            logger.info(f"💾 OTP data: {otp_data}")
+            
+            if self.db:
+                # Use email as document ID for easy retrieval
+                doc_ref = self.db.collection(OTP_COLLECTION).document(email.lower())
+                prepared_data = self.prepare_for_firestore(otp_data)
+                logger.info(f"💾 Prepared data for Firestore: {prepared_data}")
+                doc_ref.set(prepared_data)
+                logger.info(f"✅ OTP saved to Firestore for {email}")
+                
+                # Verify it was saved by reading it back
+                saved_doc = doc_ref.get()
+                if saved_doc.exists:
+                    saved_data = saved_doc.to_dict()
+                    logger.info(f"✅ Verified OTP saved successfully: {saved_data}")
+                else:
+                    logger.error(f"❌ OTP save verification failed for {email}")
+                    return False
+                return True
+            else:
+                # Fallback to memory - remove any existing OTP for this email first
+                self.memory_otp_codes = [otp_code for otp_code in self.memory_otp_codes if otp_code.get('email') != email.lower()]
+                self.memory_otp_codes.append(otp_data)
+                logger.info(f"✅ OTP saved to memory for {email}")
+                logger.info(f"💾 Memory OTP codes: {self.memory_otp_codes}")
+                return True
+        except Exception as e:
+            logger.error(f"❌ Failed to save OTP: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            return False
+
+    async def get_otp(self, email: str) -> Optional[dict]:
+        """Get OTP code for email"""
+        try:
+            logger.info(f"🔍 Looking for OTP for email: {email}")
+            
+            if self.db:
+                doc_ref = self.db.collection(OTP_COLLECTION).document(email.lower())
+                doc = doc_ref.get()
+                logger.info(f"🔍 Firestore document exists: {doc.exists}")
+                if doc.exists:
+                    otp_data = doc.to_dict()
+                    logger.info(f"🔍 Found OTP data in Firestore: {otp_data}")
+                    return otp_data
+                logger.info(f"🔍 No OTP found in Firestore for {email}")
+                return None
+            else:
+                # Fallback to memory
+                logger.info(f"🔍 Searching memory OTP codes: {self.memory_otp_codes}")
+                for otp in self.memory_otp_codes:
+                    if otp.get('email') == email.lower():
+                        logger.info(f"🔍 Found OTP in memory: {otp}")
+                        return otp
+                logger.info(f"🔍 No OTP found in memory for {email}")
+                return None
+        except Exception as e:
+            logger.error(f"❌ Failed to get OTP: {e}")
+            return None
+
+    async def verify_and_use_otp(self, email: str, otp: str) -> bool:
+        """Verify OTP and mark as used"""
+        try:
+            logger.info(f"🔐 Verifying OTP for {email}: {otp}")
+            
+            otp_data = await self.get_otp(email)
+            logger.info(f"🔐 Retrieved OTP data: {otp_data}")
+            
+            if not otp_data:
+                logger.error(f"❌ No OTP data found for {email}")
+                return False
+            
+            stored_otp = otp_data.get('otp')
+            is_used = otp_data.get('used', False)
+            expires_at = otp_data.get('expires_at')
+            # Use UTC timezone for consistency
+            current_time = datetime.now(timezone.utc)
+            
+            # Convert expires_at to timezone-aware if it's naive
+            if expires_at and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            
+            logger.info(f"🔐 OTP comparison - Stored: {stored_otp}, Received: {otp}, Match: {stored_otp == otp}")
+            logger.info(f"🔐 Used status: {is_used}")
+            logger.info(f"🔐 Expiration - Expires: {expires_at}, Current: {current_time}, Valid: {expires_at > current_time if expires_at else False}")
+            
+            # Check if OTP matches and is not expired
+            if (stored_otp == otp and 
+                not is_used and 
+                expires_at and expires_at > current_time):
+                
+                # Mark as used
+                if self.db:
+                    doc_ref = self.db.collection(OTP_COLLECTION).document(email.lower())
+                    doc_ref.update({'used': True})
+                    logger.info(f"✅ OTP marked as used in Firestore for {email}")
+                else:
+                    # Update in memory
+                    for stored_otp in self.memory_otp_codes:
+                        if stored_otp.get('email') == email.lower():
+                            stored_otp['used'] = True
+                            break
+                    logger.info(f"✅ OTP marked as used in memory for {email}")
+                
+                logger.info(f"✅ OTP verified and used for {email}")
+                return True
+            
+            logger.error(f"❌ OTP verification failed for {email}")
+            return False
+        except Exception as e:
+            logger.error(f"❌ Failed to verify OTP: {e}")
+            return False
+
+    async def cleanup_expired_otps(self):
+        """Clean up expired OTP codes"""
+        try:
+            # Use UTC timezone for consistency
+            current_time = datetime.now(timezone.utc)
+            
+            logger.info(f"🧹 Cleaning up expired OTPs. Current time: {current_time}")
+            
+            if self.db:
+                # Query expired OTPs
+                expired_otps = self.db.collection(OTP_COLLECTION).where('expires_at', '<', current_time).stream()
+                deleted_count = 0
+                for doc in expired_otps:
+                    doc_data = doc.to_dict()
+                    logger.info(f"🧹 Deleting expired OTP for {doc_data.get('email')}: expires_at={doc_data.get('expires_at')}")
+                    doc.reference.delete()
+                    deleted_count += 1
+                logger.info(f"🧹 Cleaned up {deleted_count} expired OTPs from Firestore")
+            else:
+                # Clean up memory
+                original_count = len(self.memory_otp_codes)
+                self.memory_otp_codes = [
+                    otp for otp in self.memory_otp_codes 
+                    if otp.get('expires_at', datetime.now(timezone.utc)) > current_time
+                ]
+                deleted_count = original_count - len(self.memory_otp_codes)
+                logger.info(f"🧹 Cleaned up {deleted_count} expired OTPs from memory")
+        except Exception as e:
+            logger.error(f"❌ Failed to cleanup expired OTPs: {e}")
 
 # Global instance
 firebase_db = FirebaseDB()
