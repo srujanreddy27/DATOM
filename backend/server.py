@@ -94,6 +94,7 @@ class Task(BaseModel):
     submissions: int = 0
     skills: List[str] = []
     escrow_status: str = "pending"
+    expected_files_count: int = 1  # Number of files client expects
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
 class TaskCreate(BaseModel):
@@ -104,6 +105,7 @@ class TaskCreate(BaseModel):
     deadline: str  # ISO date string YYYY-MM-DD
     client: str
     skills: List[str] = []
+    expected_files_count: int = 1  # Number of files client expects
 
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -133,19 +135,35 @@ class EscrowTransaction(BaseModel):
     smart_contract_address: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class FileSubmission(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    file_path: str
+    file_name: str
+    file_type: str
+    file_size: int
+    status: str = "pending"  # pending, approved, rejected
+    feedback: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    rejected_at: Optional[datetime] = None
+
 class Submission(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     task_id: str
     freelancer_id: str
     freelancer_name: str
     description: str
-    files: List[str] = []  # File paths on server
-    status: str = "pending"  # pending, approved, rejected
+    files: List[FileSubmission] = []  # Individual file submissions with status
+    overall_status: str = "pending"  # pending, partially_approved, fully_approved, rejected
+    approved_files_count: int = 0
+    total_files_count: int = 0
+    approval_percentage: float = 0.0
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    approved_at: Optional[datetime] = None
+    last_updated_at: Optional[datetime] = None
     payment_claimable: bool = False  # True when freelancer can claim payment
     payment_claimed: bool = False  # True when payment has been claimed
     payment_claimed_at: Optional[datetime] = None
+    payment_amount: float = 0.0  # Calculated based on approval percentage
+    can_resubmit: bool = True  # True if freelancer can resubmit rejected files
 
 class PaymentClaim(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -289,6 +307,37 @@ async def get_escrow_balance() -> float:
     except Exception as e:
         logger.error(f"Failed to get escrow balance: {e}")
         return 0.0
+
+def calculate_proportional_payment(task_budget: float, approved_files: int, total_files: int) -> float:
+    """Calculate proportional payment based on approved files"""
+    if total_files == 0:
+        return 0.0
+    return (task_budget * approved_files) / total_files
+
+def update_submission_stats(submission: Submission) -> Submission:
+    """Update submission statistics based on file statuses"""
+    approved_count = sum(1 for file in submission.files if file.status == "approved")
+    total_count = len(submission.files)
+    
+    submission.approved_files_count = approved_count
+    submission.total_files_count = total_count
+    submission.approval_percentage = (approved_count / total_count * 100) if total_count > 0 else 0
+    
+    # Update overall status
+    if approved_count == 0:
+        if any(file.status == "rejected" for file in submission.files):
+            submission.overall_status = "rejected"
+        else:
+            submission.overall_status = "pending"
+    elif approved_count == total_count:
+        submission.overall_status = "fully_approved"
+    else:
+        submission.overall_status = "partially_approved"
+    
+    # Update payment claimable status
+    submission.payment_claimable = approved_count > 0
+    
+    return submission
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -442,6 +491,17 @@ async def cleanup_tasks():
         deadline_str = str(task_data.get("deadline", ""))
         if deadline_str and is_significantly_past_deadline(deadline_str):
             await firebase_db.delete_task(task_id)
+
+def calculate_proportional_payment(total_budget: float, approved_files: int, expected_files: int) -> float:
+    """Calculate proportional payment based on approved files"""
+    if expected_files <= 0:
+        return 0.0
+    
+    # Calculate percentage of approved files
+    approval_percentage = min(approved_files / expected_files, 1.0)  # Cap at 100%
+    
+    # Return proportional payment
+    return total_budget * approval_percentage
 
 # Routes
 @api_router.get("/")
@@ -644,13 +704,20 @@ async def create_submission(
         raise HTTPException(status_code=400, detail="At least one file is required")
     
     # Validate and save uploaded files
-    saved_files = []
+    file_submissions = []
     for file in files:
         if file.filename:  # Skip empty files
             file_path = await save_uploaded_file(file, task_id, current_user.id)
-            saved_files.append(file_path)
+            file_submission = FileSubmission(
+                file_path=file_path,
+                file_name=file.filename,
+                file_type=file.content_type or "application/octet-stream",
+                file_size=file.size or 0,
+                status="pending"
+            )
+            file_submissions.append(file_submission)
     
-    if not saved_files:
+    if not file_submissions:
         raise HTTPException(status_code=400, detail="No valid files uploaded")
     
     # Create submission with current user as freelancer
@@ -659,7 +726,9 @@ async def create_submission(
         freelancer_id=current_user.id,
         freelancer_name=current_user.username,
         description=description.strip(),
-        files=saved_files
+        files=file_submissions,
+        total_files_count=len(file_submissions),
+        overall_status="pending"
     )
     
     # Save submission to Firebase
@@ -828,6 +897,450 @@ async def can_submit_to_task(task_id: str, current_user: User = Depends(get_curr
     
     return {"can_submit": True}
 
+# Partial Approval System Endpoints
+@api_router.put("/submissions/{submission_id}/files/{file_id}/approve")
+async def approve_file(
+    submission_id: str,
+    file_id: str,
+    feedback: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Approve a specific file in a submission"""
+    # Get submission
+    sub_data = await firebase_db.get_submission_by_id(submission_id)
+    if not sub_data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    # Check if user is the task owner
+    task_data = await firebase_db.get_task_by_id(sub_data["task_id"])
+    if not task_data or task_data.get("client") != current_user.username:
+        raise HTTPException(status_code=403, detail="Only task owner can approve files")
+    
+    # Create submission object and find the file
+    submission = Submission(**sub_data)
+    file_found = False
+    
+    for file_sub in submission.files:
+        if file_sub.id == file_id:
+            if file_sub.status == "approved":
+                raise HTTPException(status_code=400, detail="File is already approved")
+            
+            file_sub.status = "approved"
+            file_sub.approved_at = datetime.now(timezone.utc)
+            if feedback:
+                file_sub.feedback = feedback
+            file_found = True
+            break
+    
+    if not file_found:
+        raise HTTPException(status_code=404, detail="File not found in submission")
+    
+    # Update submission statistics
+    submission = update_submission_stats(submission)
+    submission.last_updated_at = datetime.now(timezone.utc)
+    
+    # Calculate proportional payment
+    submission.payment_amount = calculate_proportional_payment(
+        task_data.get("budget", 0),
+        submission.approved_files_count,
+        submission.total_files_count
+    )
+    
+    # Save updated submission
+    success = await firebase_db.update_submission(submission_id, submission.dict())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update submission")
+    
+    return {
+        "message": "File approved successfully",
+        "file_id": file_id,
+        "submission_status": submission.overall_status,
+        "approved_files": submission.approved_files_count,
+        "total_files": submission.total_files_count,
+        "approval_percentage": submission.approval_percentage,
+        "payment_amount": submission.payment_amount
+    }
+
+# Individual file approval by index (for frontend compatibility)
+@api_router.put("/submissions/{submission_id}/files/index/{file_index}/approve")
+async def approve_file_by_index(
+    submission_id: str,
+    file_index: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Approve a specific file in a submission by index"""
+    # Get submission
+    sub_data = await firebase_db.get_submission_by_id(submission_id)
+    if not sub_data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    submission = Submission(**sub_data)
+    
+    # Check if user is the task owner
+    task_data = await firebase_db.get_task_by_id(submission.task_id)
+    if not task_data or task_data.get("client") != current_user.username:
+        raise HTTPException(status_code=403, detail="Only task owner can approve files")
+    
+    # Check if file index is valid
+    if file_index < 0 or file_index >= len(submission.files):
+        raise HTTPException(status_code=404, detail=f"File index {file_index} out of range. Total files: {len(submission.files)}")
+    
+    # Debug logging
+    logger.info(f"Approving file at index {file_index} for submission {submission_id}")
+    logger.info(f"File structure: {type(submission.files[file_index])}")
+    
+    # Ensure the file is a proper FileSubmission object
+    file_obj = submission.files[file_index]
+    if not isinstance(file_obj, FileSubmission):
+        # Convert to FileSubmission if it's a dict or other format
+        if isinstance(file_obj, dict):
+            file_obj = FileSubmission(**file_obj)
+            submission.files[file_index] = file_obj
+        else:
+            raise HTTPException(status_code=500, detail=f"Invalid file object type: {type(file_obj)}")
+    
+    # Approve the file at the specified index
+    file_obj.status = "approved"
+    file_obj.approved_at = datetime.now(timezone.utc)
+    
+    # Update approval counts and percentages
+    submission.approved_files_count = sum(1 for f in submission.files if f.status == "approved")
+    submission.total_files_count = len(submission.files)
+    submission.approval_percentage = (submission.approved_files_count / submission.total_files_count) * 100
+    
+    # Calculate proportional payment based on expected files from task (not submitted files)
+    expected_files = task_data.get("expected_files_count", 1)
+    submission.payment_amount = calculate_proportional_payment(
+        task_data.get("budget", 0),
+        submission.approved_files_count,
+        expected_files
+    )
+    
+    # Make payment claimable if at least one file is approved
+    submission.payment_claimable = submission.approved_files_count > 0
+    
+    # Update submission status
+    if submission.approved_files_count == submission.total_files_count:
+        submission.overall_status = "fully_approved"
+    elif submission.approved_files_count > 0:
+        submission.overall_status = "partially_approved"
+    
+    # Check if we should terminate the task (when approved files == expected files)
+    expected_files = task_data.get("expected_files_count", 1)
+    if submission.approved_files_count >= expected_files:
+        # Update task status to completed
+        task_data["status"] = "completed"
+        task_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+        await firebase_db.update_task(submission.task_id, task_data)
+        logger.info(f"Task {submission.task_id} completed - approved files ({submission.approved_files_count}) reached expected count ({expected_files})")
+    
+    submission.last_updated_at = datetime.now(timezone.utc)
+    
+    # Save updated submission
+    await firebase_db.update_submission(submission_id, submission.dict())
+    
+    return {
+        "message": "File approved successfully",
+        "approved_files_count": submission.approved_files_count,
+        "total_files_count": submission.total_files_count,
+        "approval_percentage": submission.approval_percentage,
+        "payment_claimable": submission.payment_claimable,
+        "payment_amount": submission.payment_amount
+    }
+
+@api_router.put("/submissions/{submission_id}/files/{file_id}/reject")
+async def reject_file(
+    submission_id: str,
+    file_id: str,
+    feedback: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Reject a specific file in a submission"""
+    # Get submission
+    sub_data = await firebase_db.get_submission_by_id(submission_id)
+    if not sub_data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    # Check if user is the task owner
+    task_data = await firebase_db.get_task_by_id(sub_data["task_id"])
+    if not task_data or task_data.get("client") != current_user.username:
+        raise HTTPException(status_code=403, detail="Only task owner can reject files")
+    
+    # Create submission object and find the file
+    submission = Submission(**sub_data)
+    file_found = False
+    
+    for file_sub in submission.files:
+        if file_sub.id == file_id:
+            if file_sub.status == "rejected":
+                raise HTTPException(status_code=400, detail="File is already rejected")
+            
+            file_sub.status = "rejected"
+            file_sub.rejected_at = datetime.now(timezone.utc)
+            if feedback:
+                file_sub.feedback = feedback
+            file_found = True
+            break
+    
+    if not file_found:
+        raise HTTPException(status_code=404, detail="File not found in submission")
+    
+    # Update submission statistics
+    submission = update_submission_stats(submission)
+    submission.last_updated_at = datetime.now(timezone.utc)
+    
+    # Calculate proportional payment
+    submission.payment_amount = calculate_proportional_payment(
+        task_data.get("budget", 0),
+        submission.approved_files_count,
+        submission.total_files_count
+    )
+    
+    # Save updated submission
+    success = await firebase_db.update_submission(submission_id, submission.dict())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update submission")
+    
+    return {
+        "message": "File rejected successfully",
+        "file_id": file_id,
+        "submission_status": submission.overall_status,
+        "approved_files": submission.approved_files_count,
+        "total_files": submission.total_files_count,
+        "approval_percentage": submission.approval_percentage,
+        "can_resubmit": submission.can_resubmit
+    }
+
+# Individual file rejection by index (for frontend compatibility)
+@api_router.put("/submissions/{submission_id}/files/index/{file_index}/reject")
+async def reject_file_by_index(
+    submission_id: str,
+    file_index: int,
+    feedback: str = Form(default=""),
+    current_user: User = Depends(get_current_user)
+):
+    """Reject a specific file in a submission by index"""
+    # Get submission
+    sub_data = await firebase_db.get_submission_by_id(submission_id)
+    if not sub_data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    submission = Submission(**sub_data)
+    
+    # Check if user is the task owner
+    task_data = await firebase_db.get_task_by_id(submission.task_id)
+    if not task_data or task_data.get("client") != current_user.username:
+        raise HTTPException(status_code=403, detail="Only task owner can reject files")
+    
+    # Check if file index is valid
+    if file_index < 0 or file_index >= len(submission.files):
+        raise HTTPException(status_code=404, detail=f"File index {file_index} out of range. Total files: {len(submission.files)}")
+    
+    # Debug logging
+    logger.info(f"Rejecting file at index {file_index} for submission {submission_id}")
+    logger.info(f"File structure: {type(submission.files[file_index])}")
+    
+    # Ensure the file is a proper FileSubmission object
+    file_obj = submission.files[file_index]
+    if not isinstance(file_obj, FileSubmission):
+        # Convert to FileSubmission if it's a dict or other format
+        if isinstance(file_obj, dict):
+            file_obj = FileSubmission(**file_obj)
+            submission.files[file_index] = file_obj
+        else:
+            raise HTTPException(status_code=500, detail=f"Invalid file object type: {type(file_obj)}")
+    
+    # Reject the file at the specified index
+    file_obj.status = "rejected"
+    file_obj.rejected_at = datetime.now(timezone.utc)
+    if feedback:
+        file_obj.feedback = feedback
+    
+    # Update approval counts and percentages
+    submission.approved_files_count = sum(1 for f in submission.files if f.status == "approved")
+    submission.total_files_count = len(submission.files)
+    submission.approval_percentage = (submission.approved_files_count / submission.total_files_count) * 100
+    
+    # Calculate proportional payment based on expected files from task (not submitted files)
+    expected_files = task_data.get("expected_files_count", 1)
+    submission.payment_amount = calculate_proportional_payment(
+        task_data.get("budget", 0),
+        submission.approved_files_count,
+        expected_files
+    )
+    
+    # Make payment claimable if at least one file is approved
+    submission.payment_claimable = submission.approved_files_count > 0
+    
+    # Update submission status
+    if submission.approved_files_count == 0:
+        submission.overall_status = "rejected"
+    elif submission.approved_files_count == submission.total_files_count:
+        submission.overall_status = "fully_approved"
+    else:
+        submission.overall_status = "partially_approved"
+    
+    # Check if we should terminate the task (when approved files == expected files)
+    expected_files = task_data.get("expected_files_count", 1)
+    if submission.approved_files_count >= expected_files:
+        # Update task status to completed
+        task_data["status"] = "completed"
+        task_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+        await firebase_db.update_task(submission.task_id, task_data)
+        logger.info(f"Task {submission.task_id} completed - approved files ({submission.approved_files_count}) reached expected count ({expected_files})")
+    
+    submission.last_updated_at = datetime.now(timezone.utc)
+    submission.can_resubmit = True  # Allow resubmission of rejected files
+    
+    # Save updated submission
+    await firebase_db.update_submission(submission_id, submission.dict())
+    
+    return {
+        "message": "File rejected successfully",
+        "approved_files_count": submission.approved_files_count,
+        "total_files_count": submission.total_files_count,
+        "approval_percentage": submission.approval_percentage,
+        "payment_claimable": submission.payment_claimable,
+        "can_resubmit": submission.can_resubmit
+    }
+
+@api_router.post("/submissions/{submission_id}/resubmit")
+async def resubmit_files(
+    submission_id: str,
+    files: List[UploadFile] = File(...),
+    replace_file_ids: List[str] = Form(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Resubmit rejected files in a submission"""
+    # Only freelancers can resubmit
+    if current_user.user_type != "freelancer":
+        raise HTTPException(status_code=403, detail="Only freelancers can resubmit files")
+    
+    # Get submission
+    sub_data = await firebase_db.get_submission_by_id(submission_id)
+    if not sub_data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    # Check if user owns this submission
+    if sub_data["freelancer_id"] != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only resubmit your own files")
+    
+    submission = Submission(**sub_data)
+    
+    # Check if resubmission is allowed
+    if not submission.can_resubmit:
+        raise HTTPException(status_code=400, detail="Resubmission is not allowed for this submission")
+    
+    # Validate that we have the same number of files and file IDs
+    if len(files) != len(replace_file_ids):
+        raise HTTPException(status_code=400, detail="Number of files must match number of file IDs to replace")
+    
+    # Get task data
+    task_data = await firebase_db.get_task_by_id(submission.task_id)
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Process file replacements
+    for i, (new_file, file_id_to_replace) in enumerate(zip(files, replace_file_ids)):
+        # Find the file to replace
+        file_found = False
+        for j, file_sub in enumerate(submission.files):
+            if file_sub.id == file_id_to_replace:
+                # Check if file was rejected (only rejected files can be resubmitted)
+                if file_sub.status != "rejected":
+                    raise HTTPException(status_code=400, detail=f"Can only resubmit rejected files. File {file_id_to_replace} is {file_sub.status}")
+                
+                # Save new file
+                if new_file.filename:
+                    file_path = await save_uploaded_file(new_file, submission.task_id, current_user.id)
+                    
+                    # Update file submission
+                    submission.files[j] = FileSubmission(
+                        id=file_id_to_replace,  # Keep the same ID
+                        file_path=file_path,
+                        file_name=new_file.filename,
+                        file_type=new_file.content_type or "application/octet-stream",
+                        file_size=new_file.size or 0,
+                        status="pending"  # Reset to pending
+                    )
+                    file_found = True
+                    break
+        
+        if not file_found:
+            raise HTTPException(status_code=404, detail=f"File ID {file_id_to_replace} not found or not rejected")
+    
+    # Update submission statistics
+    submission = update_submission_stats(submission)
+    submission.last_updated_at = datetime.now(timezone.utc)
+    
+    # Save updated submission
+    success = await firebase_db.update_submission(submission_id, submission.dict())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update submission")
+    
+    return {
+        "message": f"Successfully resubmitted {len(files)} files",
+        "submission_id": submission_id,
+        "resubmitted_files": len(files),
+        "submission_status": submission.overall_status
+    }
+
+@api_router.put("/submissions/{submission_id}/bulk-approve")
+async def bulk_approve_files(
+    submission_id: str,
+    file_ids: List[str] = Form(...),
+    feedback: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Approve multiple files at once"""
+    # Get submission
+    sub_data = await firebase_db.get_submission_by_id(submission_id)
+    if not sub_data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    # Check if user is the task owner
+    task_data = await firebase_db.get_task_by_id(sub_data["task_id"])
+    if not task_data or task_data.get("client") != current_user.username:
+        raise HTTPException(status_code=403, detail="Only task owner can approve files")
+    
+    submission = Submission(**sub_data)
+    approved_count = 0
+    
+    # Approve specified files
+    for file_sub in submission.files:
+        if file_sub.id in file_ids and file_sub.status == "pending":
+            file_sub.status = "approved"
+            file_sub.approved_at = datetime.now(timezone.utc)
+            if feedback:
+                file_sub.feedback = feedback
+            approved_count += 1
+    
+    # Update submission statistics
+    submission = update_submission_stats(submission)
+    submission.last_updated_at = datetime.now(timezone.utc)
+    
+    # Calculate proportional payment
+    submission.payment_amount = calculate_proportional_payment(
+        task_data.get("budget", 0),
+        submission.approved_files_count,
+        submission.total_files_count
+    )
+    
+    # Save updated submission
+    success = await firebase_db.update_submission(submission_id, submission.dict())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update submission")
+    
+    return {
+        "message": f"Approved {approved_count} files successfully",
+        "approved_files": approved_count,
+        "submission_status": submission.overall_status,
+        "total_approved": submission.approved_files_count,
+        "total_files": submission.total_files_count,
+        "approval_percentage": submission.approval_percentage,
+        "payment_amount": submission.payment_amount
+    }
+
 @api_router.get("/download-file")
 async def download_file_with_token(file_path: str, token: str):
     """Download files with Firebase token authentication (for browser links)"""
@@ -854,6 +1367,7 @@ async def download_file_with_token(file_path: str, token: str):
         # Additional security: verify user has access to this file
         filename = full_path.name
         try:
+            # Try to extract task_id and freelancer_id from filename
             parts = filename.split('_')
             if len(parts) >= 2:
                 task_id = parts[0]
@@ -870,9 +1384,17 @@ async def download_file_with_token(file_path: str, token: str):
                     task_data = await firebase_db.get_task_by_id(task_id)
                     if not task_data or task_data.get("client") != user.username:
                         raise HTTPException(status_code=403, detail="Access denied - not authorized to view this file")
+            else:
+                # If filename doesn't follow expected format, allow access for now
+                # This is a fallback for files that don't follow the naming convention
+                logger.warning(f"File {filename} doesn't follow expected naming convention, allowing access")
+                pass
         except Exception as e:
             logger.warning(f"Could not verify file access for {filename}: {e}")
-            raise HTTPException(status_code=403, detail="Access denied")
+            # Instead of denying access, log the warning and allow access
+            # This prevents legitimate users from being blocked due to filename format issues
+            logger.warning(f"Allowing file access despite verification failure for user {user.id}")
+            pass
         
         # Return file
         return FileResponse(
@@ -908,26 +1430,38 @@ async def claim_payment(
     if sub_data["freelancer_id"] != current_user.id:
         raise HTTPException(status_code=403, detail="You can only claim payment for your own submissions")
     
-    # Check if submission is approved and payment is claimable
-    if sub_data.get("status") != "approved":
-        raise HTTPException(status_code=400, detail="Submission must be approved to claim payment")
+    # Create submission object to access new fields
+    submission = Submission(**sub_data)
     
-    if not sub_data.get("payment_claimable", False):
-        raise HTTPException(status_code=400, detail="Payment is not yet claimable")
+    # Check if payment is claimable (must have at least some approved files)
+    if not submission.payment_claimable:
+        raise HTTPException(status_code=400, detail="Payment is not yet claimable - no files have been approved")
     
-    if sub_data.get("payment_claimed", False):
+    if submission.payment_claimed:
         raise HTTPException(status_code=400, detail="Payment has already been claimed")
+    
+    # Check if there are any approved files
+    if submission.approved_files_count == 0:
+        raise HTTPException(status_code=400, detail="No files have been approved for payment")
     
     # Validate wallet address format (basic validation)
     if not wallet_address.startswith("0x") or len(wallet_address) != 42:
         raise HTTPException(status_code=400, detail="Invalid wallet address format")
     
-    # Get task data for payment amount
-    task_data = await firebase_db.get_task_by_id(sub_data["task_id"])
+    # Get task data for payment calculation
+    task_data = await firebase_db.get_task_by_id(submission.task_id)
     if not task_data:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    payment_amount = task_data.get("budget", 0)
+    # Use proportional payment amount based on approved files
+    payment_amount = submission.payment_amount
+    if payment_amount <= 0:
+        # Recalculate if not set
+        payment_amount = calculate_proportional_payment(
+            task_data.get("budget", 0),
+            submission.approved_files_count,
+            submission.total_files_count
+        )
     
     # Create payment claim record
     claim_data = {

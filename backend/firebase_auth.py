@@ -59,7 +59,7 @@ def initialize_firebase():
         # For development: Create a minimal service account configuration
         try:
             logger.info("Initializing Firebase for development...")
-            project_id = os.environ.get('GOOGLE_CLOUD_PROJECT', "")
+            project_id = os.environ.get('GOOGLE_CLOUD_PROJECT', "datom-19e9a")
             
             # Create a minimal service account dict for development
             # This is a simplified approach for development only
@@ -147,6 +147,7 @@ async def verify_firebase_token(authorization: Optional[str] = Header(default=No
             
         except ValueError as ve:
             logger.error(f"Firebase app not initialized: {ve}")
+            logger.error("Please ensure FIREBASE_SERVICE_ACCOUNT_KEY_PATH or FIREBASE_SERVICE_ACCOUNT_KEY_JSON is set correctly")
             raise HTTPException(status_code=500, detail="Firebase authentication not available")
         
     except auth.InvalidIdTokenError as e:

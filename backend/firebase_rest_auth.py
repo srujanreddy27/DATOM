@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 # Firebase REST API endpoints
 FIREBASE_VERIFY_TOKEN_URL = "https://identitytoolkit.googleapis.com/v1/accounts:lookup"
-FIREBASE_API_KEY = os.environ.get('FIREBASE_API_KEY', 'AIzaSyAHbgvx-U51cUdLKuT0pcp0Mt82ooWjAlI')
+FIREBASE_API_KEY = os.environ.get('FIREBASE_API_KEY', 'AIzaSyBMJS7MFdKLisxIhrpG6WEaJOOMBj0sOYc')
 
 # Debug logging
 logger.info(f"Firebase API Key loaded: {FIREBASE_API_KEY[:20]}..." if FIREBASE_API_KEY else "No Firebase API Key found")
