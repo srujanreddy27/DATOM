@@ -20,6 +20,9 @@ from web3 import Web3
 from eth_account import Account
 import json
 from datetime import timedelta
+import hashlib
+import base64
+from zkp_system import FileZKPSystem
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +98,7 @@ class Task(BaseModel):
     skills: List[str] = []
     escrow_status: str = "pending"
     expected_files_count: int = 1  # Number of files client expects
+    validation_code: Optional[str] = None  # Optional validation code for automated testing
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
 class TaskCreate(BaseModel):
@@ -106,6 +110,7 @@ class TaskCreate(BaseModel):
     client: str
     skills: List[str] = []
     expected_files_count: int = 1  # Number of files client expects
+    validation_code: Optional[str] = None  # Optional validation code for automated testing
 
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -145,6 +150,9 @@ class FileSubmission(BaseModel):
     feedback: Optional[str] = None
     approved_at: Optional[datetime] = None
     rejected_at: Optional[datetime] = None
+    zkp_proof: Optional[str] = None  # Zero-knowledge proof for file validation
+    zkp_metrics: Optional[dict] = None  # Metrics extracted from file for validation
+    auto_approved: bool = False  # True if approved automatically via validation code
 
 class Submission(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -503,6 +511,79 @@ def calculate_proportional_payment(total_budget: float, approved_files: int, exp
     # Return proportional payment
     return total_budget * approval_percentage
 
+def generate_zkp_for_file(file_path: str, file_name: str, file_size: int, validation_code: str = None) -> tuple[dict, dict]:
+    """
+    Generate a REAL cryptographic zero-knowledge proof for a file.
+    Uses Pedersen commitments and Schnorr-like proofs.
+    
+    Returns (zkp_proofs_dict, public_metrics_dict)
+    
+    The ZKP proves file properties (size, name pattern) WITHOUT revealing:
+    - The actual file content
+    - The exact file size (only that it meets criteria)
+    - The full file name (only that it contains required substring)
+    """
+    try:
+        full_path = ROOT_DIR / file_path
+        
+        # Generate cryptographic ZKP proofs
+        if validation_code:
+            zkp_proofs = FileZKPSystem.generate_file_proofs(
+                str(full_path), 
+                file_name, 
+                file_size, 
+                validation_code
+            )
+        else:
+            # No validation code, just create commitments
+            zkp_proofs = {
+                "commitments_only": True,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        
+        # Public metrics (minimal information revealed)
+        public_metrics = {
+            "has_zkp_proof": bool(validation_code),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "proof_count": len(zkp_proofs.get("proofs", []))
+        }
+        
+        return zkp_proofs, public_metrics
+        
+    except Exception as e:
+        logger.error(f"Failed to generate ZKP for file {file_path}: {e}")
+        return {}, {}
+
+def verify_zkp_proof(zkp_proofs: dict, validation_code: str) -> bool:
+    """
+    Verify a cryptographic zero-knowledge proof.
+    
+    This verification happens WITHOUT accessing the actual file!
+    The verifier only checks the mathematical proof, not the file itself.
+    
+    Returns True if the ZKP is valid, False otherwise.
+    """
+    if not validation_code or not validation_code.strip():
+        return False
+    
+    if not zkp_proofs or zkp_proofs.get("commitments_only"):
+        return False
+    
+    try:
+        # Verify the cryptographic proof
+        is_valid = FileZKPSystem.verify_file_proofs(zkp_proofs, validation_code)
+        
+        if is_valid:
+            logger.info(f"✅ ZKP verification PASSED - File meets criteria WITHOUT revealing content")
+        else:
+            logger.info(f"❌ ZKP verification FAILED - File does not meet criteria")
+        
+        return is_valid
+        
+    except Exception as e:
+        logger.error(f"ZKP verification failed: {e}")
+        return False
+
 # Routes
 @api_router.get("/")
 async def root():
@@ -703,22 +784,76 @@ async def create_submission(
     if not files or len(files) == 0:
         raise HTTPException(status_code=400, detail="At least one file is required")
     
+    # Get validation code from task (if exists)
+    validation_code = task_data.get("validation_code")
+    
     # Validate and save uploaded files
     file_submissions = []
+    auto_approved_count = 0
+    
     for file in files:
         if file.filename:  # Skip empty files
             file_path = await save_uploaded_file(file, task_id, current_user.id)
+            file_size = file.size or 0
+            
+            # Generate REAL cryptographic ZKP for the file
+            zkp_proofs, public_metrics = generate_zkp_for_file(
+                file_path, 
+                file.filename, 
+                file_size,
+                validation_code
+            )
+            
+            # Check if file passes validation code using ZKP verification
+            auto_approved = False
+            file_status = "pending"
+            
+            if validation_code and zkp_proofs:
+                # Verify the cryptographic ZKP proof
+                # This proves the file meets criteria WITHOUT revealing the file!
+                if verify_zkp_proof(zkp_proofs, validation_code):
+                    auto_approved = True
+                    file_status = "approved"
+                    auto_approved_count += 1
+                    logger.info(f"✅ File {file.filename} auto-approved via CRYPTOGRAPHIC ZKP")
+                else:
+                    logger.info(f"❌ File {file.filename} failed ZKP verification")
+            
             file_submission = FileSubmission(
                 file_path=file_path,
                 file_name=file.filename,
                 file_type=file.content_type or "application/octet-stream",
-                file_size=file.size or 0,
-                status="pending"
+                file_size=file_size,
+                status=file_status,
+                zkp_proof=json.dumps(zkp_proofs) if zkp_proofs else None,  # Store as JSON string
+                zkp_metrics=public_metrics,
+                auto_approved=auto_approved,
+                approved_at=datetime.now(timezone.utc) if auto_approved else None
             )
             file_submissions.append(file_submission)
     
     if not file_submissions:
         raise HTTPException(status_code=400, detail="No valid files uploaded")
+    
+    # Calculate approval stats
+    total_files = len(file_submissions)
+    approval_percentage = (auto_approved_count / total_files * 100) if total_files > 0 else 0
+    
+    # Determine overall status
+    if auto_approved_count == 0:
+        overall_status = "pending"
+    elif auto_approved_count == total_files:
+        overall_status = "fully_approved"
+    else:
+        overall_status = "partially_approved"
+    
+    # Calculate payment amount based on auto-approved files
+    expected_files = task_data.get("expected_files_count", 1)
+    payment_amount = calculate_proportional_payment(
+        task_data.get("budget", 0),
+        auto_approved_count,
+        expected_files
+    )
     
     # Create submission with current user as freelancer
     sub_obj = Submission(
@@ -727,8 +862,12 @@ async def create_submission(
         freelancer_name=current_user.username,
         description=description.strip(),
         files=file_submissions,
-        total_files_count=len(file_submissions),
-        overall_status="pending"
+        total_files_count=total_files,
+        approved_files_count=auto_approved_count,
+        approval_percentage=approval_percentage,
+        overall_status=overall_status,
+        payment_claimable=auto_approved_count > 0,
+        payment_amount=payment_amount
     )
     
     # Save submission to Firebase
@@ -739,6 +878,13 @@ async def create_submission(
     # Update task submission count
     current_submissions = task_data.get("submissions", 0)
     await firebase_db.update_task(task_id, {"submissions": current_submissions + 1})
+    
+    # Check if task should be completed (when approved files >= expected files)
+    if auto_approved_count >= expected_files:
+        task_data["status"] = "completed"
+        task_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+        await firebase_db.update_task(task_id, task_data)
+        logger.info(f"Task {task_id} auto-completed - approved files ({auto_approved_count}) reached expected count ({expected_files})")
     
     return sub_obj
 
@@ -1591,9 +1737,13 @@ async def get_blockchain_status():
 # ---------------- Authentication Routes ----------------
 @api_router.post("/auth/signup", response_model=TokenResponse)
 async def signup(payload: SignupRequest):
+    logger.info(f"📝 Signup attempt for: {payload.email}")
+    logger.info(f"📝 User type: {payload.user_type}")
+    
     # Prevent duplicate emails
     existing = await get_auth_record_by_email(payload.email.lower())
     if existing:
+        logger.warning(f"❌ Email already registered: {payload.email}")
         raise HTTPException(status_code=400, detail="Email already registered")
 
     # Create profile user
@@ -1605,8 +1755,15 @@ async def signup(payload: SignupRequest):
         user_type=user_type,
     )
     
+    logger.info(f"📝 Creating user: {user_obj.id}, type: {user_type}")
+    
     # Save user to Firebase
-    await firebase_db.save_user(user_obj.dict())
+    user_saved = await firebase_db.save_user(user_obj.dict())
+    if not user_saved:
+        logger.error(f"❌ Failed to save user to Firebase")
+        raise HTTPException(status_code=500, detail="Failed to create user account")
+    
+    logger.info(f"✅ User saved successfully: {user_obj.id}")
 
     # Save auth record
     auth_record = {
@@ -1616,23 +1773,76 @@ async def signup(payload: SignupRequest):
         "user_id": user_obj.id,
         "created_at": datetime.now(timezone.utc),
     }
-    await save_auth_record(auth_record)
+    
+    logger.info(f"📝 Saving auth record for: {payload.email.lower()}")
+    auth_saved = await firebase_db.save_auth_record(auth_record)
+    
+    if not auth_saved:
+        logger.error(f"❌ Failed to save auth record to Firebase")
+        raise HTTPException(status_code=500, detail="Failed to save authentication credentials")
+    
+    logger.info(f"✅ Auth record saved successfully for: {payload.email.lower()}")
+    
+    # Verify it was saved
+    verify_record = await get_auth_record_by_email(payload.email.lower())
+    if not verify_record:
+        logger.error(f"❌ Auth record verification failed - record not found after save!")
+        raise HTTPException(status_code=500, detail="Authentication setup failed")
+    
+    logger.info(f"✅ Auth record verified in database")
 
     token = create_access_token({"sub": user_obj.id, "email": user_obj.email})
     return TokenResponse(access_token=token, user=user_obj)
 
+@api_router.get("/auth/debug/check-email/{email}")
+async def debug_check_email(email: str):
+    """Debug endpoint to check if email exists in auth records"""
+    rec = await get_auth_record_by_email(email.lower())
+    if rec:
+        return {
+            "found": True,
+            "email": rec.get("email"),
+            "user_id": rec.get("user_id"),
+            "has_password": bool(rec.get("hashed_password")),
+            "hash_starts_with": rec.get("hashed_password", "")[:20] if rec.get("hashed_password") else None
+        }
+    return {"found": False, "email": email.lower()}
+
 @api_router.post("/auth/login", response_model=TokenResponse)
 async def login(payload: LoginRequest):
     logger.info(f"🔐 Login attempt for: {payload.email}")
+    logger.info(f"🔐 Password length: {len(payload.password)}")
+    logger.info(f"🔐 Email after lowercase: {payload.email.lower()}")
     
     rec = await get_auth_record_by_email(payload.email.lower())
     logger.info(f"🔐 Auth record found: {rec is not None}")
     
-    if rec:
-        stored_hash = rec.get("hashed_password", "")
-        logger.info(f"🔐 Stored hash length: {len(stored_hash)}")
+    if not rec:
+        logger.error(f"❌ No auth record found for {payload.email}")
+        raise HTTPException(
+            status_code=401, 
+            detail="Invalid email or password. If you signed up with email/password, please use the signup form. If you used Google sign-in, please use 'Continue with Google'."
+        )
+    
+    # Check if this is a Firebase user (signed up via Firebase Auth)
+    is_firebase_user = rec.get("is_firebase_user", False)
+    stored_hash = rec.get("hashed_password", "")
+    
+    logger.info(f"🔐 Is Firebase user: {is_firebase_user}")
+    logger.info(f"🔐 Stored hash length: {len(stored_hash)}")
+    
+    if is_firebase_user and not stored_hash:
+        # This user signed up via Firebase (email/password or Google)
+        # They need to use Firebase authentication, not our custom login
+        logger.error(f"❌ Firebase user trying to use custom login: {payload.email}")
+        raise HTTPException(
+            status_code=401,
+            detail="This account uses Firebase authentication. Please use 'Continue with Google' or sign in through Firebase."
+        )
+    
+    # Verify password for custom auth users
+    if stored_hash:
         logger.info(f"🔐 Stored hash starts with: {stored_hash[:20]}...")
-        
         password_valid = verify_password(payload.password, stored_hash)
         logger.info(f"🔐 Password verification result: {password_valid}")
         
@@ -1640,8 +1850,10 @@ async def login(payload: LoginRequest):
             logger.error(f"❌ Password verification failed for {payload.email}")
             raise HTTPException(status_code=401, detail="Invalid email or password")
     else:
-        logger.error(f"❌ No auth record found for {payload.email}")
+        logger.error(f"❌ No password hash found for {payload.email}")
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Get user data
     user_data = await firebase_db.get_user_by_id(rec["user_id"])
     if not user_data:
         raise HTTPException(status_code=401, detail="User not found")
@@ -1658,6 +1870,7 @@ async def login(payload: LoginRequest):
     
     user = User(**user_data)
     token = create_access_token({"sub": user.id, "email": user.email})
+    logger.info(f"✅ Login successful for: {payload.email}")
     return TokenResponse(access_token=token, user=user)
 
 @api_router.get("/auth/me", response_model=User)
@@ -1787,18 +2000,40 @@ async def verify_firebase_token_endpoint(authorization: Optional[str] = Header(d
     # Fallback to Firebase verification
     try:
         firebase_user = await verify_firebase_token_hybrid(authorization)
+        email = firebase_user["email"].lower()
         
         # Get or create user in our database
         user = await get_user_by_firebase_uid(firebase_user["uid"])
         if not user:
+            logger.info(f"📝 Creating new user from Firebase auth: {email}")
+            
             # Create new user from Firebase data
             user_obj = User(
                 username=firebase_user["name"],
-                email=firebase_user["email"],
-                user_type="freelancer",  # default
+                email=email,
+                user_type="freelancer",  # default - will be updated by frontend
                 firebase_uid=firebase_user["uid"],
             )
             await save_user(user_obj)
+            logger.info(f"✅ User profile created: {user_obj.id}")
+            
+            # IMPORTANT: Create auth record for future logins
+            auth_record = {
+                "id": str(uuid.uuid4()),
+                "email": email,
+                "hashed_password": "",  # Empty for Firebase users
+                "user_id": user_obj.id,
+                "firebase_uid": firebase_user["uid"],
+                "created_at": datetime.now(timezone.utc),
+                "is_firebase_user": True
+            }
+            
+            auth_saved = await firebase_db.save_auth_record(auth_record)
+            if auth_saved:
+                logger.info(f"✅ Auth record created for Firebase user: {email}")
+            else:
+                logger.warning(f"⚠️ Failed to create auth record for: {email}")
+            
             user = user_obj
         
         return {
@@ -1891,12 +2126,18 @@ class FirebaseSignupRequest(BaseModel):
 async def firebase_signup(payload: FirebaseSignupRequest, authorization: Optional[str] = Header(default=None)):
     """Create a new user account with Firebase authentication"""
     try:
+        logger.info(f"📝 Firebase signup for: {payload.username}, type: {payload.user_type}")
+        
         # Verify Firebase token
         firebase_user = await verify_firebase_token_hybrid(authorization)
+        email = firebase_user["email"].lower()
+        
+        logger.info(f"✅ Firebase token verified for: {email}")
         
         # Check if user already exists
         existing_user = await get_user_by_firebase_uid(firebase_user["uid"])
         if existing_user:
+            logger.info(f"ℹ️ User already exists: {email}")
             return {
                 "user": existing_user,
                 "firebase_user": firebase_user,
@@ -1906,11 +2147,30 @@ async def firebase_signup(payload: FirebaseSignupRequest, authorization: Optiona
         # Create new user
         user_obj = User(
             username=payload.username,
-            email=firebase_user["email"],
+            email=email,
             user_type=payload.user_type,
             firebase_uid=firebase_user["uid"],
         )
         await save_user(user_obj)
+        logger.info(f"✅ User profile created: {user_obj.id}")
+        
+        # IMPORTANT: Create auth record for email/password login
+        # Even though Firebase handles authentication, we need this for our custom login endpoint
+        auth_record = {
+            "id": str(uuid.uuid4()),
+            "email": email,
+            "hashed_password": "",  # Empty for Firebase users (they authenticate via Firebase)
+            "user_id": user_obj.id,
+            "firebase_uid": firebase_user["uid"],
+            "created_at": datetime.now(timezone.utc),
+            "is_firebase_user": True  # Flag to indicate this is a Firebase-authenticated user
+        }
+        
+        auth_saved = await firebase_db.save_auth_record(auth_record)
+        if auth_saved:
+            logger.info(f"✅ Auth record created for Firebase user: {email}")
+        else:
+            logger.warning(f"⚠️ Failed to create auth record for: {email}")
         
         return {
             "user": user_obj,
@@ -1920,6 +2180,7 @@ async def firebase_signup(payload: FirebaseSignupRequest, authorization: Optiona
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"❌ Firebase signup failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
 
 # ---------------- Forgot Password Routes ----------------

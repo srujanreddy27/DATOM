@@ -1949,7 +1949,6 @@ const TasksPage = () => {
   );
 };
 
-// Post Task Page Component
 const PostTaskPage = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -1961,7 +1960,9 @@ const PostTaskPage = () => {
     budget: "",
     deadline: "",
     skills: [],
-    client: ""
+    client: "",
+    expected_files_count: 1,
+    validation_code: ""
   });
 
   const [skillInput, setSkillInput] = useState("");
@@ -2072,6 +2073,8 @@ const PostTaskPage = () => {
         deadline: formData.deadline,
         client: formData.client,
         skills: formData.skills,
+        expected_files_count: Number(formData.expected_files_count),
+        validation_code: formData.validation_code || null,
       };
       
       // Create task on backend first
@@ -2203,7 +2206,9 @@ const PostTaskPage = () => {
           budget: "",
           deadline: "",
           skills: [],
-          client: user?.username || ""
+          client: user?.username || "",
+          expected_files_count: 1,
+          validation_code: ""
         });
         navigate('/tasks', { state: { flash: 'Task posted and funded successfully!' } });
         
@@ -2402,6 +2407,62 @@ const PostTaskPage = () => {
                       />
                     </PopoverContent>
                   </Popover>
+                </div>
+
+                {/* Expected Files Count */}
+                <div className="space-y-2">
+                  <Label htmlFor="expected_files_count" className="text-white font-medium">
+                    Expected Number of Files *
+                  </Label>
+                  <Input
+                    id="expected_files_count"
+                    name="expected_files_count"
+                    type="number"
+                    value={formData.expected_files_count}
+                    onChange={handleInputChange}
+                    placeholder="1"
+                    min="1"
+                    max="100"
+                    className="bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 focus:border-teal-500"
+                    required
+                  />
+                  <p className="text-xs text-gray-400">
+                    How many files do you expect freelancers to deliver? Payment will be proportional to approved files.
+                  </p>
+                </div>
+
+                {/* Validation Code */}
+                <div className="space-y-2">
+                  <Label htmlFor="validation_code" className="text-white font-medium flex items-center gap-2">
+                    Validation Code (Optional)
+                    <Badge variant="secondary" className="bg-purple-500/20 text-purple-300 border-purple-500/30">
+                      Testing
+                    </Badge>
+                  </Label>
+                  <Textarea
+                    id="validation_code"
+                    name="validation_code"
+                    value={formData.validation_code}
+                    onChange={handleInputChange}
+                    placeholder="file_size > 1000000"
+                    rows={3}
+                    className="bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 focus:border-teal-500 font-mono text-sm"
+                  />
+                  <div className="text-xs text-gray-400 space-y-1">
+                    <p>
+                      <strong className="text-purple-400">🔐 Cryptographic Zero-Knowledge Proof Auto-Approval:</strong> Freelancers prove their files meet your criteria <strong className="text-teal-400">WITHOUT revealing the actual file content!</strong>
+                    </p>
+                    <p className="text-purple-300">
+                      Uses Pedersen Commitments & Schnorr Proofs - Files are validated cryptographically before you see them.
+                    </p>
+                    <p>
+                      <strong>Available criteria:</strong> <code className="text-teal-400">file_size</code>, <code className="text-teal-400">file_name</code>
+                    </p>
+                    <p>
+                      <strong>Examples:</strong> <code className="text-yellow-400">file_size &gt; 1000000</code> (proves file is larger than 1MB without revealing exact size), 
+                      <code className="text-yellow-400 ml-2">".jpg" in file_name</code> (proves filename contains .jpg without revealing full name)
+                    </p>
+                  </div>
                 </div>
 
                 {/* Skills */}

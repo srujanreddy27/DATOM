@@ -265,11 +265,26 @@ class FirebaseDB:
     async def save_auth_record(self, record: dict) -> bool:
         """Save auth record to Firestore"""
         try:
+            logger.info(f"💾 Attempting to save auth record for email: {record.get('email')}")
+            logger.info(f"💾 Firestore DB available: {self.db is not None}")
+            
             if self.db:
                 prepared_data = self.prepare_for_firestore(record)
+                logger.info(f"💾 Prepared data keys: {list(prepared_data.keys())}")
+                
                 doc_ref = self.db.collection(AUTH_USERS_COLLECTION).document(record['id'])
+                logger.info(f"💾 Writing to collection: {AUTH_USERS_COLLECTION}, doc: {record['id']}")
+                
                 doc_ref.set(prepared_data)
-                logger.info(f"Auth record saved to Firestore: {record['id']}")
+                logger.info(f"✅ Auth record saved to Firestore: {record['id']} for {record.get('email')}")
+                
+                # Verify it was saved
+                saved_doc = doc_ref.get()
+                if saved_doc.exists:
+                    logger.info(f"✅ Verified: Auth record exists in Firestore")
+                else:
+                    logger.error(f"❌ Verification failed: Auth record not found after save!")
+                
                 return True
             else:
                 # Fallback to memory
@@ -277,7 +292,8 @@ class FirebaseDB:
                 logger.info(f"Auth record saved to memory: {record['id']}")
                 return True
         except Exception as e:
-            logger.error(f"Failed to save auth record: {e}")
+            logger.error(f"❌ Failed to save auth record: {e}")
+            logger.exception("Full traceback:")
             return False
 
     async def get_auth_record_by_email(self, email: str) -> Optional[dict]:

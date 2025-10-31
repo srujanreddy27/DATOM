@@ -5,13 +5,13 @@
 window.APP_CONFIG = {
   "BACKEND_URL": "http://localhost:8000",
   "FIREBASE_CONFIG": {
-    "apiKey": "AIzaSyAHbgvx-U51cUdLKuT0pcp0Mt82ooWjAlI",
-    "authDomain": "datom-2b7ff.firebaseapp.com",
-    "projectId": "datom-2b7ff",
-    "storageBucket": "datom-2b7ff.appspot.com",
-    "messagingSenderId": "1069100540873",
-    "appId": "1:1069100540873:web:a56adda20c39192561be18",
-    "measurementId": "G-QZXH09KTFC"
+    "apiKey": "AIzaSyBMJS7MFdKLisxIhrpG6WEaJOOMBj0sOYc",
+    "authDomain": "datom-19e9a.firebaseapp.com",
+    "projectId": "datom-19e9a",
+    "storageBucket": "datom-19e9a.firebasestorage.app",
+    "messagingSenderId": "425432168423",
+    "appId": "1:425432168423:web:7806fe952b36c475eb6f42",
+    "measurementId": "G-ZBHQ3NYHKB"
   }
 };
 

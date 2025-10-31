@@ -37,6 +37,17 @@ const MySubmissions = ({ currentUser }) => {
     }
   }, [currentUser]);
 
+  // Auto-refresh submissions every 30 seconds to show real-time updates
+  useEffect(() => {
+    if (currentUser && currentUser.user_type === 'freelancer') {
+      const interval = setInterval(() => {
+        fetchMySubmissions();
+      }, 30000); // 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [currentUser]);
+
   const fetchMySubmissions = async () => {
     setIsLoading(true);
     setError('');
@@ -110,6 +121,10 @@ const MySubmissions = ({ currentUser }) => {
   };
 
   const filterSubmissionsByStatus = (status) => {
+    if (status === 'approved') {
+      // Include both fully approved and partially approved (payment claimable) submissions
+      return submissions.filter(sub => sub.status === 'approved' || sub.payment_claimable);
+    }
     return submissions.filter(sub => sub.status === status);
   };
 
@@ -179,41 +194,112 @@ const MySubmissions = ({ currentUser }) => {
           {/* Files */}
           {submission.files && submission.files.length > 0 && (
             <div>
-              <div className="flex items-center space-x-2 mb-2">
-                <Upload className="w-4 h-4 text-blue-400" />
-                <span className="text-sm font-medium text-white">Files ({submission.files.length})</span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  <Upload className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm font-medium text-white">Files ({submission.files.length})</span>
+                </div>
+                {submission.approved_files_count !== undefined && (
+                  <div className="text-xs text-gray-400">
+                    {submission.approved_files_count} approved
+                  </div>
+                )}
               </div>
-              <div className="space-y-1">
-                {submission.files.slice(0, 2).map((file, index) => {
-                  const fileName = file.split('/').pop() || file;
+              <div className="space-y-2">
+                {submission.files.map((file, index) => {
+                  const isFileObject = typeof file === 'object' && file !== null;
+                  const fileName = isFileObject ? file.file_name || file.name : (typeof file === 'string' && file) ? file.split('/').pop() || file : String(file || '');
+                  const fileStatus = isFileObject ? file.status : 'pending';
+                  const filePath = isFileObject ? file.file_path : file;
                   const token = localStorage.getItem('firebase_token');
-                  const downloadUrl = `${BACKEND_URL}/api/download-file?file_path=${encodeURIComponent(file)}&token=${encodeURIComponent(token)}`;
+                  const downloadUrl = `${BACKEND_URL}/api/download-file?file_path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`;
+                  
+                  const getFileStatusColor = (status) => {
+                    switch (status) {
+                      case 'approved':
+                        return 'bg-green-500/20 text-green-400 border-green-500/30';
+                      case 'rejected':
+                        return 'bg-red-500/20 text-red-400 border-red-500/30';
+                      default:
+                        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+                    }
+                  };
+
+                  const getFileStatusIcon = (status) => {
+                    switch (status) {
+                      case 'approved':
+                        return <CheckCircle className="w-3 h-3" />;
+                      case 'rejected':
+                        return <XCircle className="w-3 h-3" />;
+                      default:
+                        return <Clock className="w-3 h-3" />;
+                    }
+                  };
                   
                   return (
-                    <a
-                      key={index}
-                      href={downloadUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center space-x-2 text-xs text-blue-400 hover:text-blue-300 bg-gray-700/30 p-2 rounded"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      <span className="truncate">{fileName}</span>
-                    </a>
+                    <div key={index} className="bg-gray-700/30 p-2 rounded">
+                      <div className="flex items-center justify-between">
+                        <a
+                          href={downloadUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center space-x-2 text-xs text-blue-400 hover:text-blue-300 flex-1"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span className="truncate">{fileName}</span>
+                        </a>
+                        <div className="flex items-center space-x-1">
+                          {isFileObject && file.auto_approved && (
+                            <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">
+                              🔐 Auto
+                            </Badge>
+                          )}
+                          <Badge className={`flex items-center space-x-1 ${getFileStatusColor(fileStatus)} text-xs`}>
+                            {getFileStatusIcon(fileStatus)}
+                            <span className="capitalize">{fileStatus}</span>
+                          </Badge>
+                        </div>
+                      </div>
+                      {isFileObject && file.zkp_proof && (
+                        <div className="mt-1 text-xs text-purple-400">
+                          🔐 ZKP Verified
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
-                {submission.files.length > 2 && (
-                  <p className="text-xs text-gray-400 px-2">
-                    +{submission.files.length - 2} more files
-                  </p>
-                )}
               </div>
             </div>
           )}
         </div>
 
+        {/* Approval Progress Summary */}
+        {submission.approved_files_count !== undefined && submission.files && submission.files.length > 0 && (
+          <div className="mt-4 bg-gray-700/20 rounded-lg p-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-300">Approval Progress:</span>
+              <span className="text-white font-semibold">
+                {submission.approved_files_count} of {submission.files.length} files approved
+              </span>
+            </div>
+            {submission.approval_percentage !== undefined && (
+              <div className="mt-2">
+                <div className="w-full bg-gray-600 rounded-full h-2">
+                  <div 
+                    className="bg-gradient-to-r from-teal-500 to-green-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(submission.approval_percentage || 0, 100)}%` }}
+                  ></div>
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {Math.round(submission.approval_percentage || 0)}% of submitted files approved
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Payment Status and Action */}
-        {submission.status === 'approved' && (
+        {(submission.status === 'approved' || submission.payment_claimable) && (
           <div className="mt-4 pt-3 border-t border-gray-700">
             {submission.payment_claimed ? (
               <div className="flex items-center justify-between">
@@ -226,21 +312,28 @@ const MySubmissions = ({ currentUser }) => {
                 </span>
               </div>
             ) : submission.payment_claimable ? (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-teal-400">Payment Ready to Claim</span>
-                <Button
-                  size="sm"
-                  onClick={() => handleClaimPayment(submission)}
-                  className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white"
-                >
-                  <Wallet className="w-3 h-3 mr-1" />
-                  Claim {tasks[submission.task_id]?.budget || 0} ETH
-                </Button>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-teal-400">Payment Ready to Claim</span>
+                  <Button
+                    size="sm"
+                    onClick={() => handleClaimPayment(submission)}
+                    className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white"
+                  >
+                    <Wallet className="w-3 h-3 mr-1" />
+                    Claim {submission.payment_amount ? `${submission.payment_amount.toFixed(4)} ETH` : `${(tasks[submission.task_id]?.budget || 0)} ETH`}
+                  </Button>
+                </div>
+                {submission.approved_files_count !== undefined && submission.approved_files_count > 0 && (
+                  <div className="text-xs text-gray-400">
+                    Partial payment for {submission.approved_files_count} approved files
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center space-x-2">
                 <Clock className="w-4 h-4 text-yellow-400" />
-                <span className="text-sm text-yellow-400">Payment Processing</span>
+                <span className="text-sm text-yellow-400">Waiting for approval</span>
               </div>
             )}
           </div>

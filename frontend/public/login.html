@@ -1779,6 +1779,7 @@
 
         // Create user in backend with user type
         const backendUrl = window.APP_CONFIG?.BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
+        console.log('📝 Calling signup endpoint with user_type:', userType);
         const response = await fetch(`${backendUrl}/api/auth/firebase/signup`, {
           method: 'POST',
           headers: {
