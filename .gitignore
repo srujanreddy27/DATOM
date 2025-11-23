@@ -6,6 +6,7 @@
 
 something/
 testsprite_tests/
+testsprite_tests/tmp/
 # Dependencies
 node_modules/
 /node_modules
