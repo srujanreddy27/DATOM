@@ -5,7 +5,7 @@
 .vscode/
 
 something/
-
+testsprite_tests/
 # Dependencies
 node_modules/
 /node_modules
