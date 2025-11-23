@@ -1,0 +1,511 @@
+[
+  {
+    "id": "TC001",
+    "title": "Google OAuth login success",
+    "description": "Verify that a user can successfully authenticate using Google OAuth via Firebase and receive a valid token",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Click on the Sign in with Google button"
+      },
+      {
+        "type": "action",
+        "description": "Select a valid Google account for authentication"
+      },
+      {
+        "type": "assertion",
+        "description": "User is authenticated and redirected to the dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "User token is generated and stored for subsequent requests"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Google OAuth login failure handling",
+    "description": "Verify that login failure due to canceled login or denied permissions is handled gracefully",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Click on the Sign in with Google button"
+      },
+      {
+        "type": "action",
+        "description": "Cancel the Google authentication or deny required permissions"
+      },
+      {
+        "type": "assertion",
+        "description": "User remains on login page or is shown an error message"
+      },
+      {
+        "type": "assertion",
+        "description": "No authentication token is generated or stored"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Create new freelance task with valid inputs",
+    "description": "Verify clients can create a freelance task specifying category, budget, deadline, and required skills successfully",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as a client user"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to the task creation page"
+      },
+      {
+        "type": "action",
+        "description": "Fill in valid category, budget, deadline, and skill requirements"
+      },
+      {
+        "type": "action",
+        "description": "Submit the new task form"
+      },
+      {
+        "type": "assertion",
+        "description": "Task is created and visible in the client's task list"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Edit existing task with valid changes",
+    "description": "Verify clients can update an existing task's details and changes are saved persistently",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as a client user"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to existing task detail page"
+      },
+      {
+        "type": "action",
+        "description": "Edit task fields with valid new values"
+      },
+      {
+        "type": "action",
+        "description": "Save the changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Task details reflect the updated values when viewed again"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Delete existing task",
+    "description": "Verify clients can delete a task and it is removed from task listings",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as a client user"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to the task list"
+      },
+      {
+        "type": "action",
+        "description": "Delete a selected task"
+      },
+      {
+        "type": "assertion",
+        "description": "Task no longer appears in task listings or client view"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Freelancer multi-file submission with ZKP validation success",
+    "description": "Verify freelancers can upload multiple files for a task and files pass zero-knowledge proof validation successfully",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as a freelancer user"
+      },
+      {
+        "type": "action",
+        "description": "Browse and select a task to submit files to"
+      },
+      {
+        "type": "action",
+        "description": "Upload multiple valid files for submission"
+      },
+      {
+        "type": "action",
+        "description": "Perform zero-knowledge proof validation on each file"
+      },
+      {
+        "type": "assertion",
+        "description": "All files are accepted and submission status is updated to submitted"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "ZKP validation failure on tampered file",
+    "description": "Verify that zero-knowledge proof validation fails for an altered or invalid file and appropriate error is shown",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as freelancer user"
+      },
+      {
+        "type": "action",
+        "description": "Select a task and upload a file modified to fail ZKP validation"
+      },
+      {
+        "type": "action",
+        "description": "Trigger zero-knowledge proof verification"
+      },
+      {
+        "type": "assertion",
+        "description": "Validation fails and clear error message is presented to user"
+      },
+      {
+        "type": "assertion",
+        "description": "File is rejected and not included in submission"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Client approves individual submitted files with proportional payment",
+    "description": "Verify clients can approve individual files from a submission and the system correctly calculates proportional payments",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as client user"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to task submissions"
+      },
+      {
+        "type": "action",
+        "description": "Review files submitted for a task"
+      },
+      {
+        "type": "action",
+        "description": "Approve one or more individual files"
+      },
+      {
+        "type": "assertion",
+        "description": "Approval status updates only for selected files"
+      },
+      {
+        "type": "assertion",
+        "description": "Payment system reflects correct proportional amount due"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Ethereum wallet connection success and escrow payment flow",
+    "description": "Verify users can connect their Ethereum wallet via MetaMask, interact with escrow smart contract, and complete payment claims",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as freelancer user"
+      },
+      {
+        "type": "action",
+        "description": "Connect Ethereum wallet using MetaMask"
+      },
+      {
+        "type": "assertion",
+        "description": "Wallet connection is successful and address displayed"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to payment claim interface for approved files"
+      },
+      {
+        "type": "action",
+        "description": "Initiate escrow smart contract interaction to claim payment"
+      },
+      {
+        "type": "assertion",
+        "description": "ETH payments are successfully transferred to freelancer wallet"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Role switching between client and freelancer updates UI and permissions",
+    "description": "Verify dynamic role switch changes user interface and limits available actions accordingly without errors",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as a user with both client and freelancer roles"
+      },
+      {
+        "type": "action",
+        "description": "Switch user role to client"
+      },
+      {
+        "type": "assertion",
+        "description": "UI updates to client dashboard and client-specific options are available"
+      },
+      {
+        "type": "action",
+        "description": "Switch user role to freelancer"
+      },
+      {
+        "type": "assertion",
+        "description": "UI updates to freelancer dashboard with appropriate permissions"
+      },
+      {
+        "type": "assertion",
+        "description": "Actions unavailable for current role are blocked or hidden"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Real-time update of submission, approval, and payment statuses",
+    "description": "Verify that all relevant statuses update in real-time across all affected user views without page reload",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as client and freelancer in separate browsers or sessions"
+      },
+      {
+        "type": "action",
+        "description": "Freelancer submits files for a task"
+      },
+      {
+        "type": "assertion",
+        "description": "Client dashboard reflects new submission immediately"
+      },
+      {
+        "type": "action",
+        "description": "Client approves individual files"
+      },
+      {
+        "type": "assertion",
+        "description": "Freelancer dashboard shows updated approval status instantly"
+      },
+      {
+        "type": "action",
+        "description": "Freelancer claims payment"
+      },
+      {
+        "type": "assertion",
+        "description": "Client and freelancer interfaces update payment status in real-time"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Multi-page routing with protected and role-based access",
+    "description": "Verify that navigation and routing restrict access based on authentication and user role properly",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Attempt to access client dashboard without login"
+      },
+      {
+        "type": "assertion",
+        "description": "User is redirected to login page"
+      },
+      {
+        "type": "action",
+        "description": "Login as freelancer and try to access client-only pages"
+      },
+      {
+        "type": "assertion",
+        "description": "Access is denied or redirected to freelancer default page"
+      },
+      {
+        "type": "action",
+        "description": "Login as client and access client pages"
+      },
+      {
+        "type": "assertion",
+        "description": "Access granted and pages load correctly"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "UI responsiveness and accessibility on multiple device sizes",
+    "description": "Verify the application UI components render correctly and are usable on various screen sizes and meet accessibility standards",
+    "category": "ui",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Open the application on desktop, tablet, and mobile devices"
+      },
+      {
+        "type": "assertion",
+        "description": "UI elements adapt layout properly for each screen size"
+      },
+      {
+        "type": "assertion",
+        "description": "Interactive components are accessible via keyboard and screen readers"
+      },
+      {
+        "type": "assertion",
+        "description": "Color contrast and font sizes meet accessibility guidelines"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Loading states and error handling feedback",
+    "description": "Verify that all loading states and error scenarios provide clear and user-friendly feedback without UI freezing or crashes",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Trigger network delay during login, task loading, or submission"
+      },
+      {
+        "type": "assertion",
+        "description": "Loading indicators are displayed appropriately"
+      },
+      {
+        "type": "action",
+        "description": "Simulate backend API failure during any CRUD operation"
+      },
+      {
+        "type": "assertion",
+        "description": "A clear error message is shown and user can retry or cancel action"
+      },
+      {
+        "type": "action",
+        "description": "Trigger blockchain transaction failure (e.g. MetaMask rejection)"
+      },
+      {
+        "type": "assertion",
+        "description": "Error is handled gracefully with user notification"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Onboarding flow triggers only on first user login",
+    "description": "Verify that welcome messages and celebratory animations are shown only once when a new user logs in for the first time",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as newly registered user"
+      },
+      {
+        "type": "assertion",
+        "description": "Onboarding welcome flow with animations is displayed"
+      },
+      {
+        "type": "action",
+        "description": "Logout and login again with the same user"
+      },
+      {
+        "type": "assertion",
+        "description": "Onboarding flow does not trigger again"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Multi-file secure download after client approval",
+    "description": "Verify freelancers can securely download individually approved files and files that are not approved are not accessible",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as freelancer"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to submitted files for a task"
+      },
+      {
+        "type": "assertion",
+        "description": "Approved files have active download links"
+      },
+      {
+        "type": "assertion",
+        "description": "Unapproved files do not allow download"
+      },
+      {
+        "type": "action",
+        "description": "Download an approved file"
+      },
+      {
+        "type": "assertion",
+        "description": "Downloaded file integrity is verified and uncorrupted"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "Task creation validation error for missing required fields",
+    "description": "Verify the system blocks task creation and displays appropriate validation messages if required fields are missing or invalid",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as client"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to create task page"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to submit form with empty or invalid budget, deadline, or skills fields"
+      },
+      {
+        "type": "assertion",
+        "description": "Form displays clear validation errors preventing submission"
+      }
+    ]
+  }
+]

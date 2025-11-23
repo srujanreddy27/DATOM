@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TC001",
+    "title": "user registration with firebase",
+    "description": "Test the user registration endpoint to ensure new users can sign up with valid username, email, password, and user_type, and that the Firebase authentication is properly integrated."
+  },
+  {
+    "id": "TC002",
+    "title": "user login with email and password",
+    "description": "Verify the login endpoint accepts valid email and password, authenticates the user via Firebase, and returns a valid JWT token with appropriate role-based access."
+  },
+  {
+    "id": "TC003",
+    "title": "verify firebase token authentication",
+    "description": "Test the Firebase token verification endpoint to ensure it correctly validates the Authorization header token and enforces role-based access control."
+  },
+  {
+    "id": "TC004",
+    "title": "send password reset email",
+    "description": "Validate the forgot-password endpoint sends a password reset email to the provided email address using the SMTP email service."
+  },
+  {
+    "id": "TC005",
+    "title": "verify otp for password reset",
+    "description": "Test the OTP verification endpoint to ensure it correctly verifies the OTP for the given email and allows setting a new password."
+  },
+  {
+    "id": "TC006",
+    "title": "create new task with validation",
+    "description": "Test the task creation endpoint to ensure clients can create tasks with all required fields, including title, description, category, budget, deadline, skills, expected_files_count, and validation_code."
+  },
+  {
+    "id": "TC007",
+    "title": "upload files with submission",
+    "description": "Verify the file upload endpoint accepts multipart/form-data with task_id, description, and multiple files, validates file size and type, and stores files securely."
+  },
+  {
+    "id": "TC008",
+    "title": "generate zero knowledge proof for file validation",
+    "description": "Test the ZKP generation endpoint to ensure it correctly generates zero-knowledge proofs for submitted files using Pedersen Commitments and Schnorr proofs without accessing file contents."
+  },
+  {
+    "id": "TC009",
+    "title": "approve individual file in submission",
+    "description": "Verify the partial approval endpoint allows clients to approve individual files within a submission, records approval status, and updates proportional payment amounts."
+  },
+  {
+    "id": "TC010",
+    "title": "claim payment for approved work",
+    "description": "Test the payment claim endpoint to ensure users can claim payments for approved submissions by providing submission_id, wallet_address, and transaction_hash, and that Ethereum blockchain transactions are processed correctly."
+  }
+]

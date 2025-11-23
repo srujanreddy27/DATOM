@@ -1,0 +1,422 @@
+{
+  "meta": {
+    "project": "DATOM - Decentralized Task Outsourcing Marketplace",
+    "date": "2025-10-29",
+    "prepared_by": "Software Development Manager"
+  },
+  "product_overview": "DATOM is a blockchain-based decentralized task outsourcing marketplace that enables clients to post tasks with escrow payments and freelancers to submit deliverables validated by zero-knowledge proofs. The platform ensures secure, proportional payments based on approved work components while preserving privacy and trustlessness through cryptographic proofs and Ethereum smart contract integrations.",
+  "core_goals": [
+    "Provide a secure and transparent platform for outsourcing tasks using blockchain escrow for payment assurance.",
+    "Enable seamless user authentication and authorization with robust role-based access controls (client and freelancer).",
+    "Allow clients to create, manage, and escrow tasks while freelancers can submit files with cryptographic verification for validation.",
+    "Implement a zero-knowledge proof system to verify file deliverables without revealing sensitive content.",
+    "Support partial approvals of submitted files inducing proportional payment releases securely on the Ethereum network.",
+    "Deliver a smooth user experience with secure file upload, management, and download features along with comprehensive submission status tracking.",
+    "Send automated email notifications for password resets, task updates, and payment confirmations.",
+    "Ensure high security standards including JWT authentication, input validation, file validation, and blockchain transaction verification."
+  ],
+  "key_features": [
+    "Firebase-based user authentication with signup, login, password reset, and token verification supporting role-based access control.",
+    "Full task lifecycle management including task creation, browsing, filtering, status updates, and escrow management.",
+    "Submission system enabling freelancers to upload multiple files per task, supporting file validation and zero-knowledge proof generation and verification.",
+    "Partial approval workflow for clients to individually approve or reject submitted files with feedback and proportional payment calculation.",
+    "Zero-Knowledge Proof validation leveraging Pedersen Commitments and Schnorr proofs to securely validate file properties such as size and name substrings without exposing file contents.",
+    "Blockchain integration with Ethereum smart contracts for escrow payments and automated, proportional ETH transfer based on approved deliverables.",
+    "Secure file upload and download system enforcing size and type constraints.",
+    "SMTP-based email service supporting password reset emails and notifications related to task submissions and payment claims."
+  ],
+  "user_flow_summary": [
+    "User registration and login flow with Firebase authentication and JWT token management including password reset via email OTP verification.",
+    "Client task management flow covering creation, browsing, filtering, viewing, updating, and deleting tasks, plus escrow status management.",
+    "Freelancer submission flow involving file uploads with multipart forms, zero-knowledge proof generation, submission tracking, resubmission of rejected files, and payment claim initiation.",
+    "Partial approval flow enabling clients to approve or reject individual files within submissions, provide feedback, and trigger proportional payment processing.",
+    "Zero-knowledge proof flow for generating and verifying proofs without file exposure as part of submission validation.",
+    "Blockchain payment flow for claiming payments via wallet address submission, transaction hash validation, and monitoring payment claim statuses through smart contract interactions.",
+    "Email notification flow for sending password reset instructions, submission notifications, and payment confirmation messages."
+  ],
+  "validation_criteria": [
+    "All authentication endpoints must securely create, verify, and manage Firebase JWT tokens and enforce role-based access.",
+    "Task management APIs should support full CRUD operations with proper validation and escrow status updates.",
+    "File uploads must be validated for size limit (max 50MB) and allowed types before acceptance.",
+    "Zero-Knowledge Proof generation and verification APIs must correctly validate submitted file commitments and proofs without accessing file contents.",
+    "Partial approval APIs must accurately record approvals or rejections per file along with feedback and update proportional payment amounts accordingly.",
+    "Blockchain payment integration must successfully process Ethereum transfers with transaction hash tracking and status verification.",
+    "Email service must reliably send password reset emails and other notifications with appropriate SMTP configuration.",
+    "User inputs throughout the system must be validated using Pydantic schemas to prevent invalid or malicious data.",
+    "Role-based access control and CORS middleware should protect all API endpoints properly.",
+    "File download endpoints must enforce token-based authentication to secure access to submitted files."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "Python 3.x",
+      "FastAPI",
+      "Uvicorn",
+      "Firebase Admin SDK",
+      "Firebase Firestore",
+      "Firebase Authentication",
+      "Web3.py",
+      "Ethereum",
+      "Pydantic",
+      "JWT",
+      "Passlib",
+      "Cryptography",
+      "SMTP Email Service",
+      "Multipart File Upload",
+      "CORS Middleware",
+      "Zero-Knowledge Proofs",
+      "Blockchain Integration"
+    ],
+    "features": [
+      {
+        "name": "Authentication System",
+        "description": "Complete Firebase-based authentication with signup, login, password reset, and token verification",
+        "files": [
+          "server.py",
+          "firebase_auth.py",
+          "firebase_hybrid_auth.py",
+          "email_service.py"
+        ],
+        "api_doc": {
+          "paths": {
+            "/api/auth/signup": {
+              "post": {
+                "summary": "User registration with Firebase",
+                "parameters": [
+                  "username",
+                  "email",
+                  "password",
+                  "user_type"
+                ]
+              }
+            },
+            "/api/auth/login": {
+              "post": {
+                "summary": "User login with email/password",
+                "parameters": [
+                  "email",
+                  "password"
+                ]
+              }
+            },
+            "/api/auth/firebase/verify": {
+              "post": {
+                "summary": "Verify Firebase token",
+                "headers": [
+                  "Authorization"
+                ]
+              }
+            },
+            "/api/auth/forgot-password": {
+              "post": {
+                "summary": "Send password reset email",
+                "parameters": [
+                  "email"
+                ]
+              }
+            },
+            "/api/auth/verify-otp": {
+              "post": {
+                "summary": "Verify OTP for password reset",
+                "parameters": [
+                  "email",
+                  "otp",
+                  "new_password"
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Task Management APIs",
+        "description": "Complete CRUD operations for freelance tasks with filtering, status updates, and escrow management",
+        "files": [
+          "server.py",
+          "firebase_db.py"
+        ],
+        "api_doc": {
+          "paths": {
+            "/api/tasks": {
+              "post": {
+                "summary": "Create new task",
+                "parameters": [
+                  "title",
+                  "description",
+                  "category",
+                  "budget",
+                  "deadline",
+                  "skills",
+                  "expected_files_count",
+                  "validation_code"
+                ]
+              },
+              "get": {
+                "summary": "Get all tasks with filtering",
+                "parameters": [
+                  "category",
+                  "status",
+                  "limit"
+                ]
+              }
+            },
+            "/api/tasks/{task_id}": {
+              "get": {
+                "summary": "Get specific task by ID"
+              }
+            },
+            "/api/tasks/my-tasks": {
+              "get": {
+                "summary": "Get tasks posted by current user"
+              }
+            },
+            "/api/tasks/{task_id}/status": {
+              "put": {
+                "summary": "Update task status"
+              }
+            },
+            "/api/tasks/{task_id}/escrow-status": {
+              "put": {
+                "summary": "Update escrow status"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "File Upload and Management",
+        "description": "Secure multi-file upload system with validation, storage, and download with authentication",
+        "files": [
+          "server.py"
+        ],
+        "api_doc": {
+          "paths": {
+            "/api/submissions": {
+              "post": {
+                "summary": "Upload files with submission",
+                "content-type": "multipart/form-data",
+                "parameters": [
+                  "task_id",
+                  "description",
+                  "files"
+                ]
+              }
+            },
+            "/api/download-file": {
+              "get": {
+                "summary": "Download files with token authentication",
+                "parameters": [
+                  "file_path",
+                  "token"
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Zero-Knowledge Proof System",
+        "description": "Cryptographic ZKP validation using Pedersen Commitments and Schnorr proofs for file properties",
+        "files": [
+          "zkp_system.py",
+          "server.py"
+        ],
+        "api_doc": {
+          "paths": {
+            "/api/submissions/{submission_id}/generate-zkp": {
+              "post": {
+                "summary": "Generate ZKP for file validation"
+              }
+            },
+            "/api/submissions/{submission_id}/verify-zkp": {
+              "post": {
+                "summary": "Verify ZKP proofs without accessing files"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Partial Approval System",
+        "description": "Individual file approval system with proportional payment calculation and resubmission support",
+        "files": [
+          "server.py",
+          "firebase_db.py"
+        ],
+        "api_doc": {
+          "paths": {
+            "/api/submissions/{submission_id}/files/{file_id}/approve": {
+              "put": {
+                "summary": "Approve individual file"
+              }
+            },
+            "/api/submissions/{submission_id}/files/{file_id}/reject": {
+              "put": {
+                "summary": "Reject individual file with feedback"
+              }
+            },
+            "/api/submissions/{submission_id}/files/index/{file_index}/approve": {
+              "put": {
+                "summary": "Approve file by index"
+              }
+            },
+            "/api/submissions/{submission_id}/files/index/{file_index}/reject": {
+              "put": {
+                "summary": "Reject file by index"
+              }
+            },
+            "/api/submissions/{submission_id}/bulk-approve": {
+              "put": {
+                "summary": "Bulk approve multiple files"
+              }
+            },
+            "/api/submissions/{submission_id}/resubmit": {
+              "post": {
+                "summary": "Resubmit rejected files"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Submission Management",
+        "description": "Complete submission lifecycle management with status tracking and approval workflows",
+        "files": [
+          "server.py",
+          "firebase_db.py"
+        ],
+        "api_doc": {
+          "paths": {
+            "/api/submissions/task/{task_id}": {
+              "get": {
+                "summary": "Get all submissions for a task"
+              }
+            },
+            "/api/submissions/my-submissions": {
+              "get": {
+                "summary": "Get user's submissions"
+              }
+            },
+            "/api/submissions/{submission_id}": {
+              "get": {
+                "summary": "Get specific submission"
+              }
+            },
+            "/api/submissions/{submission_id}/approve": {
+              "put": {
+                "summary": "Approve entire submission"
+              }
+            },
+            "/api/submissions/{submission_id}/reject": {
+              "put": {
+                "summary": "Reject entire submission"
+              }
+            },
+            "/api/tasks/{task_id}/can-submit": {
+              "get": {
+                "summary": "Check if user can submit to task"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Payment and Blockchain Integration",
+        "description": "Ethereum blockchain integration for escrow payments and automated transfers",
+        "files": [
+          "server.py",
+          "partial_payment_blockchain.py"
+        ],
+        "api_doc": {
+          "paths": {
+            "/api/payments/claim": {
+              "post": {
+                "summary": "Claim payment for approved work",
+                "parameters": [
+                  "submission_id",
+                  "wallet_address",
+                  "transaction_hash"
+                ]
+              }
+            },
+            "/api/payments/my-claims": {
+              "get": {
+                "summary": "Get user's payment claims"
+              }
+            },
+            "/api/submissions/{submission_id}/payment-status": {
+              "get": {
+                "summary": "Check payment claim status"
+              }
+            },
+            "/api/blockchain/status": {
+              "get": {
+                "summary": "Get blockchain connection and escrow status"
+              }
+            },
+            "/api/blockchain/config": {
+              "get": {
+                "summary": "Get blockchain network configuration"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "User Management",
+        "description": "User profile management with role-based access control",
+        "files": [
+          "server.py",
+          "firebase_db.py"
+        ],
+        "api_doc": {
+          "paths": {
+            "/api/users": {
+              "post": {
+                "summary": "Create new user",
+                "parameters": [
+                  "username",
+                  "email",
+                  "user_type"
+                ]
+              },
+              "get": {
+                "summary": "Get all users with filtering",
+                "parameters": [
+                  "user_type",
+                  "limit"
+                ]
+              }
+            },
+            "/api/users/{user_id}": {
+              "get": {
+                "summary": "Get user by ID"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Email Service Integration",
+        "description": "SMTP-based email service for password resets and notifications",
+        "files": [
+          "email_service.py",
+          "server.py"
+        ],
+        "api_doc": {
+          "paths": {
+            "/api/auth/forgot-password": {
+              "post": {
+                "summary": "Send password reset email"
+              }
+            },
+            "/api/auth/verify-otp": {
+              "post": {
+                "summary": "Verify email OTP"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

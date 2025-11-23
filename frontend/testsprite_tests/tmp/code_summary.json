@@ -1,0 +1,134 @@
+{
+  "tech_stack": [
+    "JavaScript",
+    "React 19.0.0",
+    "Node.js",
+    "Firebase Authentication",
+    "Ethereum/Web3",
+    "Ethers.js",
+    "Axios",
+    "TailwindCSS",
+    "Radix UI",
+    "Lucide React Icons",
+    "React Router DOM",
+    "React Hook Form",
+    "Zod Validation"
+  ],
+  "features": [
+    {
+      "name": "Firebase Authentication System",
+      "description": "Complete Google OAuth authentication with Firebase integration, user management, and token-based authorization",
+      "files": [
+        "src/firebase.js",
+        "src/components/FirebaseAuth.js"
+      ]
+    },
+    {
+      "name": "Task Management System",
+      "description": "Full CRUD operations for blockchain-based freelance tasks with categories, budgets, deadlines, and skill requirements",
+      "files": [
+        "src/App.js",
+        "src/components/TaskCard.js"
+      ]
+    },
+    {
+      "name": "Partial Approval System",
+      "description": "Revolutionary system allowing clients to approve individual files instead of entire submissions, with proportional payment calculation",
+      "files": [
+        "src/components/TaskSubmissions.js",
+        "src/components/MySubmissions.js"
+      ]
+    },
+    {
+      "name": "Zero-Knowledge Proof (ZKP) Validation",
+      "description": "Cryptographic ZKP system using Pedersen Commitments and Schnorr proofs for file validation without revealing content",
+      "files": [
+        "src/App.js",
+        "src/components/TaskSubmissions.js"
+      ]
+    },
+    {
+      "name": "File Submission and Management",
+      "description": "Multi-file upload system with individual file status tracking, approval workflow, and secure download functionality",
+      "files": [
+        "src/components/SubmissionModal.js",
+        "src/components/MySubmissions.js"
+      ]
+    },
+    {
+      "name": "Blockchain Integration",
+      "description": "Ethereum wallet connection, smart contract interaction, and escrow payment system with MetaMask integration",
+      "files": [
+        "src/App.js",
+        "src/components/PaymentClaimModal.js"
+      ]
+    },
+    {
+      "name": "Payment Claim System",
+      "description": "Proportional payment claims based on approved files with blockchain escrow integration and ETH transactions",
+      "files": [
+        "src/components/PaymentClaimModal.js",
+        "src/components/MySubmissions.js"
+      ]
+    },
+    {
+      "name": "User Role Management",
+      "description": "Dynamic user type switching between client and freelancer roles with role-specific UI and permissions",
+      "files": [
+        "src/App.js"
+      ]
+    },
+    {
+      "name": "Real-time Status Updates",
+      "description": "Live updates for submission status, file approvals, and payment claims with auto-refresh functionality",
+      "files": [
+        "src/components/MySubmissions.js",
+        "src/components/TaskSubmissions.js"
+      ]
+    },
+    {
+      "name": "Advanced UI Components",
+      "description": "Modern React UI with Radix components, TailwindCSS styling, responsive design, and accessibility features",
+      "files": [
+        "src/components/ui/button.js",
+        "src/components/ui/card.js",
+        "src/components/ui/dialog.js",
+        "src/components/ui/input.js",
+        "src/components/ui/textarea.js",
+        "src/components/ui/badge.js",
+        "src/components/ui/tabs.js",
+        "src/components/ui/progress.js",
+        "src/components/ui/select.js",
+        "src/components/ui/calendar.js",
+        "src/components/ui/popover.js",
+        "src/components/ui/separator.js",
+        "src/components/ui/label.js",
+        "src/components/ui/avatar.js"
+      ]
+    },
+    {
+      "name": "Navigation and Routing",
+      "description": "Multi-page application with protected routes, mobile-responsive navigation, and user-specific menu items",
+      "files": [
+        "src/App.js",
+        "src/index.js"
+      ]
+    },
+    {
+      "name": "Loading and Error Handling",
+      "description": "Comprehensive loading states, error boundaries, and user feedback systems throughout the application",
+      "files": [
+        "src/components/LoadingSpinner.js",
+        "src/App.js"
+      ]
+    },
+    {
+      "name": "Welcome and Onboarding",
+      "description": "User onboarding experience with celebration animations and welcome messages for new users",
+      "files": [
+        "src/components/WelcomeGreeting.js",
+        "src/App.js"
+      ]
+    }
+  ]
+}

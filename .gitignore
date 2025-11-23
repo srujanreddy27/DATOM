@@ -81,12 +81,29 @@ agenthub/agents/youtube/db
 .cache/
 
 # Mobile development
-android-sdk/ -e 
-# Environment files
+android-sdk/
+
+# Environment files - CRITICAL: Never commit these!
 *.env
--e 
-# Environment files
-*.env
-# Firebase
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# Firebase - CRITICAL: Never commit service account keys!
 backend/firebase-service-account-key.json
+**/firebase-service-account-key.json
+*service-account*.json
+
+# Uploads and user data
 backend/uploads/
+uploads/
+
+# Secrets and keys
+*.pem
+*.key
+*.p12
+*.pfx
+*secret*
+*private*

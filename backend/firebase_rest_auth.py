@@ -8,10 +8,14 @@ logger = logging.getLogger(__name__)
 
 # Firebase REST API endpoints
 FIREBASE_VERIFY_TOKEN_URL = "https://identitytoolkit.googleapis.com/v1/accounts:lookup"
-FIREBASE_API_KEY = os.environ.get('FIREBASE_API_KEY', 'AIzaSyBMJS7MFdKLisxIhrpG6WEaJOOMBj0sOYc')
+FIREBASE_API_KEY = os.environ.get('FIREBASE_API_KEY')
 
-# Debug logging
-logger.info(f"Firebase API Key loaded: {FIREBASE_API_KEY[:20]}..." if FIREBASE_API_KEY else "No Firebase API Key found")
+if not FIREBASE_API_KEY:
+    logger.error("FIREBASE_API_KEY environment variable is required but not set")
+    raise ValueError("FIREBASE_API_KEY must be set in environment variables")
+
+# Confirm API key is loaded (without exposing it)
+logger.info("Firebase API Key loaded successfully")
 
 async def verify_firebase_token_rest(authorization: Optional[str] = Header(default=None)) -> dict:
     """Verify Firebase ID token using REST API"""
@@ -22,7 +26,7 @@ async def verify_firebase_token_rest(authorization: Optional[str] = Header(defau
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     token = authorization.split(" ", 1)[1]
-    logger.info(f"Extracted token (first 20 chars): {token[:20]}...")
+    logger.info("Token extracted for verification")
     
     try:
         # Use Firebase REST API to verify the token

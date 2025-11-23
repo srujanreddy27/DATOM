@@ -33,7 +33,21 @@ const FirebaseAuth = ({ onAuthChange }) => {
           }
         } catch (error) {
           console.error('Error verifying user with backend:', error);
-          setError('Failed to verify authentication');
+          
+          // Handle different types of errors
+          if (error.response?.status === 401) {
+            setError('Authentication expired. Please sign in again.');
+            // Force re-authentication
+            await firebaseUser.getIdToken(true); // Force refresh
+            localStorage.removeItem('firebase_token');
+          } else if (error.response?.status >= 500) {
+            setError('Server error. Please try again later.');
+          } else if (error.code === 'NETWORK_ERROR' || !error.response) {
+            setError('Network error. Please check your connection.');
+          } else {
+            setError('Failed to verify authentication. Please try again.');
+          }
+          
           setUser(null);
           localStorage.removeItem('firebase_token');
           

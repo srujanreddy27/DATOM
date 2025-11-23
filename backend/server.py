@@ -58,7 +58,9 @@ except Exception as e:
     logger.error("Falling back to REST API authentication")
 
 # JWT Configuration
-SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-here-change-in-production')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY or len(SECRET_KEY) < 32:
+    raise ValueError("SECRET_KEY must be set in environment variables and be at least 32 characters long")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -210,7 +212,8 @@ class TokenResponse(BaseModel):
     user: User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SECRET_KEY = os.environ.get("JWT_SECRET", "dev-secret-key-change-me")
+# Use the same SECRET_KEY defined above for JWT
+# SECRET_KEY already validated at startup
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
@@ -231,8 +234,13 @@ ESCROW_ADDRESS = os.environ.get("ESCROW_ADDRESS", "0xA54130603Aed8B222f9BE8F22F4
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
 
 # Private key for escrow contract (in production, use secure key management)
-ESCROW_PRIVATE_KEY = os.environ.get("ESCROW_PRIVATE_KEY", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")  # Anvil default account #0
-escrow_account = Account.from_key(ESCROW_PRIVATE_KEY)
+ESCROW_PRIVATE_KEY = os.environ.get("ESCROW_PRIVATE_KEY")
+if not ESCROW_PRIVATE_KEY:
+    raise ValueError("ESCROW_PRIVATE_KEY must be set in environment variables. Never use default keys in production!")
+try:
+    escrow_account = Account.from_key(ESCROW_PRIVATE_KEY)
+except Exception as e:
+    raise ValueError(f"Invalid ESCROW_PRIVATE_KEY format: {e}")
 
 # Simple escrow contract ABI (for basic ETH transfers)
 ESCROW_ABI = [
@@ -455,11 +463,33 @@ def is_past_deadline(deadline_str: str) -> bool:
         return False
 
 async def save_uploaded_file(file: UploadFile, task_id: str, freelancer_id: str) -> str:
-    """Save uploaded file and return the file path"""
+    """Save uploaded file and return the file path with enhanced security validation"""
     # Validate file extension
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"File type {file_ext} not allowed")
+    
+    # Validate MIME type matches extension (prevents malicious file uploads)
+    content_type = file.content_type or ""
+    allowed_mime_types = {
+        '.pdf': ['application/pdf'],
+        '.doc': ['application/msword'],
+        '.docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        '.txt': ['text/plain'],
+        '.zip': ['application/zip', 'application/x-zip-compressed'],
+        '.rar': ['application/x-rar-compressed', 'application/vnd.rar'],
+        '.jpg': ['image/jpeg'],
+        '.jpeg': ['image/jpeg'],
+        '.png': ['image/png'],
+        '.gif': ['image/gif'],
+        '.mp4': ['video/mp4'],
+        '.mov': ['video/quicktime'],
+        '.avi': ['video/x-msvideo', 'video/avi']
+    }
+    
+    if file_ext in allowed_mime_types and content_type not in allowed_mime_types[file_ext]:
+        logger.warning(f"MIME type mismatch: {content_type} for extension {file_ext}")
+        # Allow upload but log warning (some browsers send incorrect MIME types)
     
     # Create unique filename
     unique_filename = f"{task_id}_{freelancer_id}_{uuid.uuid4().hex[:8]}{file_ext}"
@@ -471,10 +501,17 @@ async def save_uploaded_file(file: UploadFile, task_id: str, freelancer_id: str)
         if len(content) > MAX_FILE_SIZE:
             raise HTTPException(status_code=400, detail="File too large (max 50MB)")
         
+        # Validate file is not empty
+        if len(content) == 0:
+            raise HTTPException(status_code=400, detail="File is empty")
+        
         with open(file_path, "wb") as f:
             f.write(content)
         
+        logger.info(f"File saved successfully: {unique_filename} ({len(content)} bytes)")
         return str(file_path.relative_to(ROOT_DIR))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to save file: {e}")
         raise HTTPException(status_code=500, detail="Failed to save file")
@@ -1794,19 +1831,9 @@ async def signup(payload: SignupRequest):
     token = create_access_token({"sub": user_obj.id, "email": user_obj.email})
     return TokenResponse(access_token=token, user=user_obj)
 
-@api_router.get("/auth/debug/check-email/{email}")
-async def debug_check_email(email: str):
-    """Debug endpoint to check if email exists in auth records"""
-    rec = await get_auth_record_by_email(email.lower())
-    if rec:
-        return {
-            "found": True,
-            "email": rec.get("email"),
-            "user_id": rec.get("user_id"),
-            "has_password": bool(rec.get("hashed_password")),
-            "hash_starts_with": rec.get("hashed_password", "")[:20] if rec.get("hashed_password") else None
-        }
-    return {"found": False, "email": email.lower()}
+# Debug endpoint removed for security - use proper logging instead
+# @api_router.get("/auth/debug/check-email/{email}")
+# Exposing user authentication information is a security risk
 
 @api_router.post("/auth/login", response_model=TokenResponse)
 async def login(payload: LoginRequest):

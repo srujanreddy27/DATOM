@@ -17,6 +17,44 @@ body {
   min-height: 100vh;
 }
 
+/* Responsive Design Improvements */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+  
+  .container {
+    padding: 0 1rem;
+  }
+  
+  /* Improve button sizes on mobile */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Better form inputs on mobile */
+  input, textarea, select {
+    font-size: 16px; /* Prevents zoom on iOS */
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra small screens */
+  .text-xl {
+    font-size: 1.125rem;
+  }
+  
+  .text-2xl {
+    font-size: 1.25rem;
+  }
+  
+  .text-3xl {
+    font-size: 1.5rem;
+  }
+}
+
 /* Hero Section Styles */
 .hero-section {
   background: radial-gradient(ellipse at center, rgba(6, 182, 212, 0.1) 0%, rgba(3, 7, 18, 0.8) 70%);

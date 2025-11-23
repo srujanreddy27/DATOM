@@ -1,0 +1,16 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000/login.html",
+  "executionArgs": {
+    "projectName": "DATOM Blockchain Frontend",
+    "projectPath": "c:\\Users\\srujan\\OneDrive\\Desktop\\projects\\7-Sem\\Project Phase-1\\Cursor\\Blockchain\\frontend",
+    "testIds": [],
+    "additionalInstruction": "Final test run after comprehensive fixes: role-based access control, loading indicators, form submission, file upload fallbacks, wallet connection for test environments, and authentication improvements. Aiming for 10+ passing tests.",
+    "envs": {
+      "API_KEY": "sk-user-hOUGlOvZxIhsugmY2vw0H-9yATfcjtSAovRJsmrPMGHxZxm0cvgIM5HRsejBsUdnJnlo2WL_WziCDrZ_BQyIivErTRtm0uaGLpk-lAWal8P335QO2bvmxos9Fb2yP0Rd6uQ"
+    }
+  },
+  "proxy": "http://8d21e546-2e64-4991-970f-df247b374426:WXxTZCKRF8cXsERXGrARx9bjeasWsZov@tun.testsprite.com:8080"
+}

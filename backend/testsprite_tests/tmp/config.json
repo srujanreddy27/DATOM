@@ -1,0 +1,19 @@
+{
+  "status": "commited",
+  "type": "backend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:8000/tasks",
+  "backendAuthType": "basic token",
+  "backendUsername": "test@gmail.com",
+  "backendPassword": "111111",
+  "executionArgs": {
+    "projectName": "DATOM Blockchain Backend",
+    "projectPath": "c:\\Users\\srujan\\OneDrive\\Desktop\\projects\\7-Sem\\Project Phase-1\\Cursor\\Blockchain\\backend",
+    "testIds": [],
+    "additionalInstruction": "Test all backend APIs comprehensively: authentication system, task management, file upload, ZKP validation, partial approval system, payment claims, and blockchain integration. Focus on API endpoints, data validation, error handling, and security.",
+    "envs": {
+      "API_KEY": "sk-user-hOUGlOvZxIhsugmY2vw0H-9yATfcjtSAovRJsmrPMGHxZxm0cvgIM5HRsejBsUdnJnlo2WL_WziCDrZ_BQyIivErTRtm0uaGLpk-lAWal8P335QO2bvmxos9Fb2yP0Rd6uQ"
+    }
+  },
+  "proxy": "http://7c9a1717-7445-49fc-b7e9-79253d02642d:JK3xLJnhFFdq5L9rkVIjDNxOL3EPPpqb@tun.testsprite.com:8080"
+}

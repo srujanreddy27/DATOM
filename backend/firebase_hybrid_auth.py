@@ -21,7 +21,7 @@ async def verify_firebase_token_hybrid(authorization: Optional[str] = Header(def
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     token = authorization.split(" ", 1)[1]
-    logger.info(f"Extracted token (first 20 chars): {token[:20]}...")
+    logger.info("Token extracted for verification")
     
     # Try Firebase Admin SDK first
     try:

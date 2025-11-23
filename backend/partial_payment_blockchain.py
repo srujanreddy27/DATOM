@@ -17,7 +17,10 @@ class PartialPaymentEscrow:
         # Blockchain Configuration
         self.rpc_url = os.environ.get("RPC_URL", "http://127.0.0.1:8545")
         self.chain_id = int(os.environ.get("CHAIN_ID", "31337"))
-        self.private_key = os.environ.get("ESCROW_PRIVATE_KEY", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+        self.private_key = os.environ.get("ESCROW_PRIVATE_KEY")
+        
+        if not self.private_key:
+            raise ValueError("ESCROW_PRIVATE_KEY must be set in environment variables. Never use default keys!")
         
         # Initialize Web3
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
