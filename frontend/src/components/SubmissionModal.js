@@ -40,19 +40,19 @@ const SubmissionModal = ({ isOpen, onClose, task, onSubmissionSubmitted }) => {
       setError('Please provide a description of your work');
       return false;
     }
-    
+
     // Allow submission without files in test environments or if explicitly allowed
     if (selectedFiles.length === 0) {
       // Check if we're in a test environment or if description is detailed enough
-      const isTestEnvironment = window.location.hostname === 'localhost' || 
-                               window.navigator.webdriver || 
-                               window.location.search.includes('test=true');
-      
+      const isTestEnvironment = window.location.hostname === 'localhost' ||
+        window.navigator.webdriver ||
+        window.location.search.includes('test=true');
+
       if (isTestEnvironment && formData.description.length > 50) {
         console.log('Test environment detected: allowing submission without files');
         return true;
       }
-      
+
       setError('Please select at least one file to upload');
       return false;
     }
@@ -95,7 +95,7 @@ const SubmissionModal = ({ isOpen, onClose, task, onSubmissionSubmitted }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -114,7 +114,7 @@ const SubmissionModal = ({ isOpen, onClose, task, onSubmissionSubmitted }) => {
       const uploadData = new FormData();
       uploadData.append('task_id', task.id);
       uploadData.append('description', formData.description.trim());
-      
+
       // Add all selected files
       selectedFiles.forEach((file) => {
         uploadData.append('files', file);
@@ -187,7 +187,7 @@ const SubmissionModal = ({ isOpen, onClose, task, onSubmissionSubmitted }) => {
             <p className="text-gray-300 text-sm mb-3">{task.description}</p>
             <div className="flex items-center justify-between text-sm">
               <span className="text-teal-400 font-semibold">
-                Budget: ${task.budget}
+                Budget: {task.budget} ETH
               </span>
               <span className="text-gray-400">
                 Deadline: {new Date(task.deadline).toLocaleDateString()}
@@ -220,7 +220,7 @@ const SubmissionModal = ({ isOpen, onClose, task, onSubmissionSubmitted }) => {
               <Upload className="w-4 h-4 mr-2" />
               Upload Files *
             </Label>
-            
+
             {/* File Input */}
             <div className="space-y-3">
               <Input
@@ -231,7 +231,7 @@ const SubmissionModal = ({ isOpen, onClose, task, onSubmissionSubmitted }) => {
                 disabled={isSubmitting}
                 accept=".pdf,.doc,.docx,.txt,.zip,.rar,.jpg,.jpeg,.png,.gif,.mp4,.mov,.avi"
               />
-              
+
               {/* Selected Files List */}
               {selectedFiles.length > 0 && (
                 <div className="space-y-2">
@@ -259,7 +259,7 @@ const SubmissionModal = ({ isOpen, onClose, task, onSubmissionSubmitted }) => {
                 </div>
               )}
             </div>
-            
+
             <p className="text-xs text-gray-400">
               Supported formats: PDF, DOC, DOCX, TXT, ZIP, RAR, JPG, PNG, GIF, MP4, MOV, AVI (Max 50MB per file)
             </p>

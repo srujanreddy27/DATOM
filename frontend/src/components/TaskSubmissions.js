@@ -4,9 +4,9 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { 
-  DollarSign, 
-  Clock, 
+import {
+  DollarSign,
+  Clock,
   Calendar,
   FileText,
   CheckCircle,
@@ -70,7 +70,7 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
       });
 
       console.log('Fetched submissions:', response.data);
-      
+
       // Ensure files are properly structured
       const processedSubmissions = response.data.map(sub => {
         if (sub.files && Array.isArray(sub.files)) {
@@ -127,11 +127,11 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
       );
 
       // Update local state
-      setSubmissions(prev => 
-        prev.map(sub => 
-          sub.id === submissionId 
-            ? { ...sub, status: 'approved', approved_at: new Date().toISOString() } 
-            : sub.status === 'pending' 
+      setSubmissions(prev =>
+        prev.map(sub =>
+          sub.id === submissionId
+            ? { ...sub, status: 'approved', approved_at: new Date().toISOString() }
+            : sub.status === 'pending'
               ? { ...sub, status: 'rejected' }  // Auto-reject other pending submissions
               : sub
         )
@@ -176,10 +176,10 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
       );
 
       // Update local state
-      setSubmissions(prev => 
-        prev.map(sub => 
-          sub.id === submissionId 
-            ? { ...sub, status: 'rejected' } 
+      setSubmissions(prev =>
+        prev.map(sub =>
+          sub.id === submissionId
+            ? { ...sub, status: 'rejected' }
             : sub
         )
       );
@@ -223,23 +223,23 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
       );
 
       // Update local state
-      setSubmissions(prev => 
+      setSubmissions(prev =>
         prev.map(sub => {
           if (sub.id === submissionId) {
             const updatedFiles = sub.files.map((file, index) => {
               if (index === fileIndex) {
-                return typeof file === 'object' 
+                return typeof file === 'object'
                   ? { ...file, status: 'approved', approved_at: new Date().toISOString() }
                   : { file_path: file, status: 'approved', approved_at: new Date().toISOString() };
               }
               return file;
             });
-            const approvedCount = updatedFiles.filter(f => 
+            const approvedCount = updatedFiles.filter(f =>
               (typeof f === 'object' ? f.status : 'pending') === 'approved'
             ).length;
-            
-            return { 
-              ...sub, 
+
+            return {
+              ...sub,
               files: updatedFiles,
               approved_files_count: approvedCount,
               approval_percentage: (approvedCount / updatedFiles.length) * 100,
@@ -254,16 +254,16 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
       if (selectedSubmission && selectedSubmission.id === submissionId) {
         const updatedFiles = selectedSubmission.files.map((file, index) => {
           if (index === fileIndex) {
-            return typeof file === 'object' 
+            return typeof file === 'object'
               ? { ...file, status: 'approved', approved_at: new Date().toISOString() }
               : { file_path: file, status: 'approved', approved_at: new Date().toISOString() };
           }
           return file;
         });
-        const approvedCount = updatedFiles.filter(f => 
+        const approvedCount = updatedFiles.filter(f =>
           (typeof f === 'object' ? f.status : 'pending') === 'approved'
         ).length;
-        
+
         setSelectedSubmission({
           ...selectedSubmission,
           files: updatedFiles,
@@ -309,7 +309,7 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
         `${BACKEND_URL}/api/submissions/${submissionId}/files/index/${fileIndex}/reject`,
         formData,
         {
-          headers: { 
+          headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'multipart/form-data'
           }
@@ -317,23 +317,23 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
       );
 
       // Update local state
-      setSubmissions(prev => 
+      setSubmissions(prev =>
         prev.map(sub => {
           if (sub.id === submissionId) {
             const updatedFiles = sub.files.map((file, index) => {
               if (index === fileIndex) {
-                return typeof file === 'object' 
+                return typeof file === 'object'
                   ? { ...file, status: 'rejected', rejected_at: new Date().toISOString(), feedback: feedback || '' }
                   : { file_path: file, status: 'rejected', rejected_at: new Date().toISOString(), feedback: feedback || '' };
               }
               return file;
             });
-            const approvedCount = updatedFiles.filter(f => 
+            const approvedCount = updatedFiles.filter(f =>
               (typeof f === 'object' ? f.status : 'pending') === 'approved'
             ).length;
-            
-            return { 
-              ...sub, 
+
+            return {
+              ...sub,
               files: updatedFiles,
               approved_files_count: approvedCount,
               approval_percentage: (approvedCount / updatedFiles.length) * 100,
@@ -348,16 +348,16 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
       if (selectedSubmission && selectedSubmission.id === submissionId) {
         const updatedFiles = selectedSubmission.files.map((file, index) => {
           if (index === fileIndex) {
-            return typeof file === 'object' 
+            return typeof file === 'object'
               ? { ...file, status: 'rejected', rejected_at: new Date().toISOString(), feedback: feedback || '' }
               : { file_path: file, status: 'rejected', rejected_at: new Date().toISOString(), feedback: feedback || '' };
           }
           return file;
         });
-        const approvedCount = updatedFiles.filter(f => 
+        const approvedCount = updatedFiles.filter(f =>
           (typeof f === 'object' ? f.status : 'pending') === 'approved'
         ).length;
-        
+
         setSelectedSubmission({
           ...selectedSubmission,
           files: updatedFiles,
@@ -487,7 +487,7 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
 
   const SubmissionCard = ({ submission }) => (
     <Card className="bg-gray-800/50 border-gray-700 hover:bg-gray-800/70 transition-all duration-200 cursor-pointer"
-          onClick={() => setSelectedSubmission(submission)}>
+      onClick={() => setSelectedSubmission(submission)}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-3 flex-1">
@@ -665,16 +665,16 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
                           const fileStatus = typeof file === 'object' ? file.status : 'pending';
                           return fileStatus === 'pending';
                         }) && (
-                          <Button
-                            size="sm"
-                            onClick={() => approveAllFiles(selectedSubmission.id)}
-                            disabled={isUpdatingStatus}
-                            className="bg-green-600 hover:bg-green-700 text-white text-xs"
-                          >
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Approve All
-                          </Button>
-                        )}
+                            <Button
+                              size="sm"
+                              onClick={() => approveAllFiles(selectedSubmission.id)}
+                              disabled={isUpdatingStatus}
+                              className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Approve All
+                            </Button>
+                          )}
                       </div>
                     </div>
                     <div className="space-y-3">
@@ -685,7 +685,7 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
                         const filePath = isFileObject ? file.file_path : file;
                         const token = localStorage.getItem('firebase_token');
                         const downloadUrl = `${BACKEND_URL}/api/download-file?file_path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`;
-                        
+
                         const getFileStatusColor = (status) => {
                           switch (status) {
                             case 'approved':
@@ -707,7 +707,7 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
                               return <Clock className="w-3 h-3" />;
                           }
                         };
-                        
+
                         return (
                           <div key={index} className="border border-gray-700 rounded-lg p-3">
                             <div className="flex items-center justify-between mb-2">
@@ -733,7 +733,7 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
                                 </Badge>
                               </div>
                             </div>
-                            
+
                             {/* ZKP Proof Information */}
                             {isFileObject && file.zkp_proof && (
                               <div className="mt-2 p-2 bg-purple-900/20 border border-purple-700/30 rounded text-xs">
@@ -757,7 +757,7 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
                                 </div>
                               </div>
                             )}
-                            
+
                             {/* Individual file approval buttons */}
                             {fileStatus === 'pending' && currentUser && currentUser.user_type === 'client' && (
                               <div className="flex space-x-2 mt-2">
@@ -783,7 +783,7 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
                                 </Button>
                               </div>
                             )}
-                            
+
                             {/* Show change status buttons for already approved/rejected files */}
                             {(fileStatus === 'approved' || fileStatus === 'rejected') && currentUser && currentUser.user_type === 'client' && (
                               <div className="flex space-x-2 mt-2">
@@ -799,7 +799,7 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
                                     Approve
                                   </Button>
                                 )}
-                                {fileStatus === 'approved' && (
+                                {fileStatus === 'approved' && (!isFileObject || !file.auto_approved) && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -813,14 +813,13 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
                                 )}
                               </div>
                             )}
-                            
+
                             {/* Show feedback if file is rejected */}
                             {isFileObject && file.feedback && (
-                              <div className={`mb-4 p-3 rounded-lg text-sm ${
-                                file.feedback.includes('🎉') 
-                                  ? 'bg-green-900/50 border border-green-700 text-green-300' 
-                                  : 'bg-red-900/50 border border-red-700 text-red-300'
-                              }`}>
+                              <div className={`mb-4 p-3 rounded-lg text-sm ${file.feedback.includes('🎉')
+                                ? 'bg-green-900/50 border border-green-700 text-green-300'
+                                : 'bg-red-900/50 border border-red-700 text-red-300'
+                                }`}>
                                 <strong>Feedback:</strong> {file.feedback}
                               </div>
                             )}
@@ -862,7 +861,7 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-300">Payment Percentage:</span>
                         <span className="text-sm font-semibold text-teal-400">
-                          {taskData && taskData.expected_files_count 
+                          {taskData && taskData.expected_files_count
                             ? Math.round((selectedSubmission.approved_files_count / taskData.expected_files_count) * 100)
                             : Math.round(selectedSubmission.approval_percentage || 0)
                           }%
@@ -872,9 +871,17 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-300">Payment Status:</span>
                           <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                            <DollarSign className="w-3 h-3 mr-1" />
+                            <span className="font-bold mr-1">ETH</span>
                             Claimable
                           </Badge>
+                        </div>
+                      )}
+                      {selectedSubmission.payment_claimable && selectedSubmission.payment_amount > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-300">Claimable Amount:</span>
+                          <span className="text-sm font-semibold text-teal-400">
+                            {((selectedSubmission.payment_amount || 0) - (selectedSubmission.total_claimed_amount || 0)).toFixed(4)} ETH
+                          </span>
                         </div>
                       )}
                     </div>
@@ -883,7 +890,7 @@ const TaskSubmissions = ({ taskId, currentUser, onSubmissionStatusChange }) => {
 
                 {/* Submission Date */}
                 <div className="text-xs text-gray-500 border-t border-gray-700 pt-4">
-                  Submitted on {formatDate(selectedSubmission.created_at)} • 
+                  Submitted on {formatDate(selectedSubmission.created_at)} •
                   Submission ID: {selectedSubmission.id}
                   {selectedSubmission.approved_at && (
                     <span className="ml-2 text-green-400">

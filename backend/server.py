@@ -173,6 +173,7 @@ class Submission(BaseModel):
     payment_claimed: bool = False  # True when payment has been claimed
     payment_claimed_at: Optional[datetime] = None
     payment_amount: float = 0.0  # Calculated based on approval percentage
+    total_claimed_amount: float = 0.0
     can_resubmit: bool = True  # True if freelancer can resubmit rejected files
 
 class PaymentClaim(BaseModel):
@@ -548,6 +549,19 @@ def calculate_proportional_payment(total_budget: float, approved_files: int, exp
     # Return proportional payment
     return total_budget * approval_percentage
 
+def get_file_hash(file_path: str) -> str:
+    """Calculate SHA-256 hash of a file"""
+    try:
+        full_path = ROOT_DIR / file_path
+        sha256_hash = hashlib.sha256()
+        with open(full_path, "rb") as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+    except Exception as e:
+        logger.error(f"Failed to calculate file hash for {file_path}: {e}")
+        return ""
+
 def generate_zkp_for_file(file_path: str, file_name: str, file_size: int, validation_code: str = None) -> tuple[dict, dict]:
     """
     Generate a REAL cryptographic zero-knowledge proof for a file.
@@ -562,6 +576,9 @@ def generate_zkp_for_file(file_path: str, file_name: str, file_size: int, valida
     """
     try:
         full_path = ROOT_DIR / file_path
+        
+        # Calculate content hash
+        content_hash = get_file_hash(file_path)
         
         # Generate cryptographic ZKP proofs
         if validation_code:
@@ -582,7 +599,8 @@ def generate_zkp_for_file(file_path: str, file_name: str, file_size: int, valida
         public_metrics = {
             "has_zkp_proof": bool(validation_code),
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "proof_count": len(zkp_proofs.get("proofs", []))
+            "proof_count": len(zkp_proofs.get("proofs", [])),
+            "content_hash": content_hash
         }
         
         return zkp_proofs, public_metrics
@@ -878,9 +896,15 @@ async def create_submission(
         raise HTTPException(status_code=400, detail="Task must be funded before accepting submissions")
     
     # Check if freelancer has already submitted work
-    existing_sub = await firebase_db.check_existing_submission(task_id, current_user.id)
-    if existing_sub:
-        raise HTTPException(status_code=400, detail="You have already submitted work for this task")
+    existing_sub_dict = await firebase_db.check_existing_submission(task_id, current_user.id)
+    existing_sub = None
+    if existing_sub_dict:
+        existing_sub = Submission(**existing_sub_dict)
+        # We allow resubmission/appending files, so we don't raise error here anymore
+        # unless the task is already fully approved/completed
+        # We allow resubmission/appending files even if fully approved, 
+        # as long as the task itself is not closed (checked above)
+        pass
     
     # Check if task already has an approved submission
     approved_sub = await firebase_db.get_approved_submission_for_task(task_id)
@@ -897,6 +921,33 @@ async def create_submission(
     # Get validation code from task (if exists)
     validation_code = task_data.get("validation_code")
     
+    # Check for duplicate approved files if submission exists
+    existing_approved_files = set()
+    existing_approved_hashes = set()
+    
+    if existing_sub:
+        for f in existing_sub.files:
+            if f.status == "approved":
+                existing_approved_files.add(f.file_name)
+                
+                # Get hash from metrics or calculate it
+                if f.zkp_metrics and f.zkp_metrics.get("content_hash"):
+                    existing_approved_hashes.add(f.zkp_metrics.get("content_hash"))
+                elif f.file_path:
+                    # Calculate hash for legacy files
+                    h = get_file_hash(f.file_path)
+                    if h:
+                        existing_approved_hashes.add(h)
+
+        duplicate_files = []
+        for file in files:
+            if file.filename in existing_approved_files:
+                duplicate_files.append(file.filename)
+        
+        if duplicate_files:
+            file_list_str = ", ".join(duplicate_files)
+            raise HTTPException(status_code=400, detail=f"The following files have already been approved and cannot be resubmitted: {file_list_str}")
+
     # Validate and save uploaded files
     file_submissions = []
     auto_approved_count = 0
@@ -913,6 +964,16 @@ async def create_submission(
                 file_size,
                 validation_code
             )
+            
+            # Check for duplicate content hash
+            content_hash = public_metrics.get("content_hash")
+            if content_hash and content_hash in existing_approved_hashes:
+                # Clean up the uploaded file
+                try:
+                    (ROOT_DIR / file_path).unlink()
+                except Exception:
+                    pass
+                raise HTTPException(status_code=400, detail=f"File '{file.filename}' has duplicate content with an already approved file.")
             
             # Check if file passes validation code using ZKP verification
             auto_approved = False
@@ -942,9 +1003,53 @@ async def create_submission(
             )
             file_submissions.append(file_submission)
     
-    if not file_submissions:
-        raise HTTPException(status_code=400, detail="No valid files uploaded")
     
+    if existing_sub:
+        # Append new files to existing submission
+        existing_sub.files.extend(file_submissions)
+        
+        # Recalculate stats
+        existing_sub.total_files_count = len(existing_sub.files)
+        existing_sub.approved_files_count = sum(1 for f in existing_sub.files if f.status == "approved")
+        existing_sub.approval_percentage = (existing_sub.approved_files_count / existing_sub.total_files_count * 100) if existing_sub.total_files_count > 0 else 0
+        
+        # Update status
+        if existing_sub.approved_files_count == 0:
+            existing_sub.overall_status = "pending"
+        elif existing_sub.approved_files_count == existing_sub.total_files_count:
+            existing_sub.overall_status = "fully_approved"
+        else:
+            existing_sub.overall_status = "partially_approved"
+            
+        # Update payment amount
+        expected_files = task_data.get("expected_files_count", 1)
+        existing_sub.payment_amount = calculate_proportional_payment(
+            task_data.get("budget", 0),
+            existing_sub.approved_files_count,
+            expected_files
+        )
+        
+        existing_sub.payment_claimable = existing_sub.approved_files_count > 0
+        existing_sub.last_updated_at = datetime.now(timezone.utc)
+        
+        # Save updated submission
+        success = await firebase_db.update_submission(existing_sub.id, existing_sub.dict())
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update submission")
+            
+        # Update task submission count (only if it's a new submission, but here we are appending, so maybe not? 
+        # Actually, "submissions" usually counts number of freelancers who submitted. 
+        # So we DON'T increment task.submissions if we are just appending.)
+        
+        # Check if task should be completed
+        if existing_sub.approved_files_count >= expected_files:
+            task_data["status"] = "completed"
+            task_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+            await firebase_db.update_task(task_id, task_data)
+            logger.info(f"Task {task_id} auto-completed - approved files ({existing_sub.approved_files_count}) reached expected count ({expected_files})")
+            
+        return existing_sub
+
     # Calculate approval stats
     total_files = len(file_submissions)
     approval_percentage = (auto_approved_count / total_files * 100) if total_files > 0 else 0
@@ -977,7 +1082,8 @@ async def create_submission(
         approval_percentage=approval_percentage,
         overall_status=overall_status,
         payment_claimable=auto_approved_count > 0,
-        payment_amount=payment_amount
+        payment_amount=payment_amount,
+        total_claimed_amount=0.0
     )
     
     # Save submission to Firebase
@@ -1711,8 +1817,13 @@ async def claim_payment(
     if not submission.payment_claimable:
         raise HTTPException(status_code=400, detail="Payment is not yet claimable - no files have been approved")
     
-    if submission.payment_claimed:
-        raise HTTPException(status_code=400, detail="Payment has already been claimed")
+    # Calculate claimable amount (Total Payable - Already Claimed)
+    total_payable = submission.payment_amount
+    already_claimed = submission.total_claimed_amount or 0.0
+    claimable_amount = total_payable - already_claimed
+    
+    if claimable_amount <= 0.000001:  # Use small epsilon for float comparison
+        raise HTTPException(status_code=400, detail="No new funds to claim. You have already claimed the full amount for approved files.")
     
     # Check if there are any approved files
     if submission.approved_files_count == 0:
@@ -1727,15 +1838,8 @@ async def claim_payment(
     if not task_data:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    # Use proportional payment amount based on approved files
-    payment_amount = submission.payment_amount
-    if payment_amount <= 0:
-        # Recalculate if not set
-        payment_amount = calculate_proportional_payment(
-            task_data.get("budget", 0),
-            submission.approved_files_count,
-            submission.total_files_count
-        )
+    # Use calculated claimable amount
+    payment_amount = claimable_amount
     
     # Create payment claim record
     claim_data = {
@@ -1754,11 +1858,12 @@ async def claim_payment(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to create payment claim")
     
-    # Mark submission as payment claimed
-    await firebase_db.update_submission(submission_id, {
-        "payment_claimed": True,
-        "payment_claimed_at": datetime.now(timezone.utc)
-    })
+    # Mark submission as payment claimed (update totals)
+    submission.total_claimed_amount = already_claimed + payment_amount
+    submission.payment_claimed = True # Mark as having claimed something
+    submission.payment_claimed_at = datetime.now(timezone.utc)
+    
+    await firebase_db.update_submission(submission_id, submission.dict())
     
     # Execute real blockchain transfer
     logger.info(f"Initiating blockchain transfer: {payment_amount} ETH to {wallet_address}")
@@ -1771,6 +1876,10 @@ async def claim_payment(
             "status": "failed",
             "error": transfer_result.get("error", "Unknown error")
         })
+        # Revert submission claim status
+        submission.total_claimed_amount = already_claimed
+        await firebase_db.update_submission(submission_id, submission.dict())
+        
         raise HTTPException(status_code=500, detail=f"Blockchain transfer failed: {transfer_result.get('error')}")
     
     # Update payment claim with successful transaction

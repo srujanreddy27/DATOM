@@ -60,7 +60,7 @@ const PaymentClaimModal = ({ isOpen, onClose, submission, task, onPaymentClaimed
 
       // Notify parent component
       if (onPaymentClaimed) {
-        onPaymentClaimed(submission.id);
+        onPaymentClaimed(submission.id, response.data.amount);
       }
 
     } catch (error) {
@@ -120,7 +120,7 @@ const PaymentClaimModal = ({ isOpen, onClose, submission, task, onPaymentClaimed
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Transaction:</span>
-                  <a 
+                  <a
                     href={`https://etherscan.io/tx/${claimResult.transaction_hash}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -158,15 +158,18 @@ const PaymentClaimModal = ({ isOpen, onClose, submission, task, onPaymentClaimed
               <h3 className="font-semibold text-white mb-2">{task.title}</h3>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Payment Amount:</span>
+                  <span className="text-gray-400">Claimable Amount:</span>
                   <div className="flex items-center space-x-1">
-                    <DollarSign className="w-4 h-4 text-teal-400" />
+                    <span className="font-bold text-teal-400 mr-1">ETH</span>
                     <span className="text-xl font-bold text-teal-400">
-                      {submission.payment_amount ? `${submission.payment_amount.toFixed(4)} ETH` : `${task.budget} ETH`}
+                      {(submission.payment_amount - (submission.total_claimed_amount || 0)).toFixed(4)}
                     </span>
                   </div>
                 </div>
-                {submission.payment_amount && submission.payment_amount < task.budget && (
+                <div className="text-xs text-gray-400">
+                  Total Earned: {submission.payment_amount.toFixed(4)} ETH | Already Claimed: {(submission.total_claimed_amount || 0).toFixed(4)} ETH
+                </div>
+                {submission.payment_amount < task.budget && (
                   <div className="text-xs text-gray-400">
                     Partial payment based on {submission.approved_files_count} approved files
                   </div>
@@ -228,8 +231,8 @@ const PaymentClaimModal = ({ isOpen, onClose, submission, task, onPaymentClaimed
                   </div>
                 ) : (
                   <>
-                    <DollarSign className="w-4 h-4 mr-2" />
-                    Claim {submission.payment_amount ? `${submission.payment_amount.toFixed(4)} ETH` : `${task.budget} ETH`}
+                    <span className="font-bold mr-2">ETH</span>
+                    Claim {((submission.payment_amount || 0) - (submission.total_claimed_amount || 0)).toFixed(4)}
                   </>
                 )}
               </Button>

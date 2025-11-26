@@ -48,7 +48,8 @@ import {
   X,
   User,
   Mail,
-  Award
+  Award,
+  Wallet
 } from "lucide-react";
 import { Calendar } from "./components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
@@ -1012,7 +1013,7 @@ const Hero = React.memo(({ totalTasks, liveTasks, totalPaidEth, isLoading, user 
               color="emerald"
             />
             <StatsCard
-              icon={DollarSign}
+              icon={Wallet}
               title="Total Paid"
               value={
                 isLoading

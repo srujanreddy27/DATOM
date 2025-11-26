@@ -4,11 +4,12 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { 
-  DollarSign, 
-  Clock, 
-  Star, 
-  Users, 
+import {
+  DollarSign,
+  Wallet,
+  Clock,
+  Star,
+  Users,
   Calendar,
   CheckCircle,
   AlertCircle,
@@ -31,7 +32,7 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
   useEffect(() => {
     const checkCanSubmit = async () => {
       if (!currentUser || !task || currentUser.user_type !== 'freelancer') return;
-      
+
       setIsCheckingSubmission(true);
       try {
         const token = localStorage.getItem('firebase_token');
@@ -59,7 +60,7 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
   const handleSubmissionSubmitted = () => {
     // Refresh the can submit status
     setCanSubmit({ can_submit: false, reason: 'You have already submitted work for this task' });
-    
+
     // Update task submission count if callback provided
     if (onTaskUpdate) {
       onTaskUpdate({
@@ -116,7 +117,7 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
     const deadline = new Date(task.deadline);
     const now = new Date();
     const daysUntilDeadline = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
-    
+
     if (daysUntilDeadline < 0) {
       return `${Math.abs(daysUntilDeadline)} days overdue`;
     } else if (daysUntilDeadline === 0) {
@@ -131,8 +132,8 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
   const renderActionButton = () => {
     if (!currentUser) {
       return (
-        <Button 
-          size="sm" 
+        <Button
+          size="sm"
           className="bg-gray-600 text-gray-300 cursor-not-allowed"
           disabled
         >
@@ -146,8 +147,8 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
       // If task is not funded, show Fund Escrow button
       if (task.escrowStatus !== 'funded') {
         return (
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             onClick={() => {
               if (onFundTask) {
                 onFundTask(task);
@@ -161,11 +162,11 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
           </Button>
         );
       }
-      
+
       if (task.status === 'completed') {
         return (
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             onClick={() => setShowSubmissionsModal(true)}
             className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
           >
@@ -174,8 +175,8 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
         );
       }
       return (
-        <Button 
-          size="sm" 
+        <Button
+          size="sm"
           onClick={() => setShowSubmissionsModal(true)}
           className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
         >
@@ -189,8 +190,8 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
       // If task is not funded, prevent submissions
       if (task.escrowStatus !== 'funded') {
         return (
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             className="bg-gray-600 text-gray-300 cursor-not-allowed"
             disabled
             title="Task must be funded before accepting submissions"
@@ -199,12 +200,12 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
           </Button>
         );
       }
-      
+
       // If task is completed, show appropriate message
       if (task.status === 'completed') {
         return (
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             className="bg-gray-600 text-gray-300 cursor-not-allowed"
             disabled
           >
@@ -226,24 +227,49 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
         const statusColors = {
           pending: 'bg-yellow-600 hover:bg-yellow-700',
           approved: 'bg-green-600 hover:bg-green-700',
-          rejected: 'bg-red-600 hover:bg-red-700'
+          rejected: 'bg-red-600 hover:bg-red-700',
+          partially_approved: 'bg-blue-600 hover:bg-blue-700',
+          fully_approved: 'bg-green-600 hover:bg-green-700'
         };
-        
+
+        // If task is completed, disable submission
+        if (task.status === 'completed') {
+          return (
+            <Button 
+              size="sm" 
+              className={`${statusColors[existingSubmission.overall_status || existingSubmission.status] || 'bg-gray-600'} cursor-default`}
+              disabled
+            >
+              Submitted ({existingSubmission.overall_status || existingSubmission.status})
+            </Button>
+          );
+        }
+
+        // Allow resubmission/stacking files
         return (
-          <Button 
-            size="sm" 
-            className={`${statusColors[existingSubmission.status] || 'bg-gray-600'} cursor-default`}
-            disabled
-          >
-            Submitted ({existingSubmission.status})
-          </Button>
+          <div className="flex space-x-2">
+            <Button
+              size="sm"
+              className={`${statusColors[existingSubmission.overall_status || existingSubmission.status] || 'bg-gray-600'} cursor-default`}
+              disabled
+            >
+              {existingSubmission.overall_status || existingSubmission.status}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setShowSubmissionModal(true)}
+              className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white"
+            >
+              Submit More
+            </Button>
+          </div>
         );
       }
 
       if (!canSubmit.can_submit) {
         return (
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             className="bg-gray-600 text-gray-300 cursor-not-allowed"
             disabled
             title={canSubmit.reason}
@@ -254,8 +280,8 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
       }
 
       return (
-        <Button 
-          size="sm" 
+        <Button
+          size="sm"
           onClick={() => setShowSubmissionModal(true)}
           className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white"
         >
@@ -267,8 +293,8 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
     // For clients viewing other people's tasks or users not logged in
     if (task.status === 'completed') {
       return (
-        <Button 
-          size="sm" 
+        <Button
+          size="sm"
           className="bg-gray-600 text-gray-300 cursor-not-allowed"
           disabled
         >
@@ -278,8 +304,8 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
     }
 
     return (
-      <Button 
-        size="sm" 
+      <Button
+        size="sm"
         className="bg-gray-600 text-gray-300 cursor-not-allowed"
         disabled
       >
@@ -319,17 +345,17 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
           {task.skills && task.skills.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {task.skills.slice(0, 3).map((skill, index) => (
-                <Badge 
-                  key={index} 
-                  variant="outline" 
+                <Badge
+                  key={index}
+                  variant="outline"
                   className="text-xs border-gray-600 text-gray-300 bg-gray-700/50"
                 >
                   {skill}
                 </Badge>
               ))}
               {task.skills.length > 3 && (
-                <Badge 
-                  variant="outline" 
+                <Badge
+                  variant="outline"
                   className="text-xs border-gray-600 text-gray-400 bg-gray-700/50"
                 >
                   +{task.skills.length - 3} more
@@ -359,8 +385,8 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
           {/* Task Details */}
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="flex items-center space-x-2">
-              <DollarSign className="w-4 h-4 text-teal-400" />
-              <span className="text-sm font-semibold text-white">${task.budget}</span>
+              <Wallet className="w-4 h-4 text-teal-400" />
+              <span className="text-sm font-semibold text-white">{task.budget} ETH</span>
             </div>
             <div className="flex items-center space-x-2">
               <Users className="w-4 h-4 text-blue-400" />
@@ -371,13 +397,12 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
           {/* Deadline */}
           <div className="flex items-center space-x-2 mb-4">
             <Calendar className="w-4 h-4 text-gray-400" />
-            <span className={`text-sm ${
-              isDeadlinePassed() 
-                ? 'text-red-400' 
-                : isDeadlineSoon() 
-                  ? 'text-yellow-400' 
-                  : 'text-gray-300'
-            }`}>
+            <span className={`text-sm ${isDeadlinePassed()
+              ? 'text-red-400'
+              : isDeadlineSoon()
+                ? 'text-yellow-400'
+                : 'text-gray-300'
+              }`}>
               {formatDeadline()}
             </span>
           </div>
@@ -387,7 +412,7 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
             <Badge variant="outline" className="border-gray-600 text-gray-300 bg-gray-700/30">
               {task.category}
             </Badge>
-            
+
             {/* Action Button */}
             {renderActionButton()}
           </div>
@@ -414,8 +439,8 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
                 Review submissions for "{task.title}"
               </DialogDescription>
             </DialogHeader>
-            <TaskSubmissions 
-              taskId={task.id} 
+            <TaskSubmissions
+              taskId={task.id}
               currentUser={currentUser}
               onSubmissionStatusChange={(submissionId, status) => {
                 if (status === 'approved' && onTaskUpdate) {

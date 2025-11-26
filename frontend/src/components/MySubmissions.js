@@ -3,9 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { 
-  DollarSign, 
-  Clock, 
+import {
+  DollarSign,
+  Clock,
   Calendar,
   FileText,
   CheckCircle,
@@ -64,7 +64,7 @@ const MySubmissions = ({ currentUser }) => {
       });
 
       setSubmissions(response.data);
-      
+
       // Fetch task details for each submission
       const taskIds = [...new Set(response.data.map(sub => sub.task_id))];
       const taskPromises = taskIds.map(async (taskId) => {
@@ -78,7 +78,7 @@ const MySubmissions = ({ currentUser }) => {
           return { [taskId]: null };
         }
       });
-      
+
       const taskResults = await Promise.all(taskPromises);
       const tasksMap = taskResults.reduce((acc, taskObj) => ({ ...acc, ...taskObj }), {});
       setTasks(tasksMap);
@@ -141,12 +141,17 @@ const MySubmissions = ({ currentUser }) => {
     }
   };
 
-  const handlePaymentClaimed = (submissionId) => {
+  const handlePaymentClaimed = (submissionId, claimedAmount) => {
     // Update the submission status locally
-    setSubmissions(prev => 
-      prev.map(sub => 
-        sub.id === submissionId 
-          ? { ...sub, payment_claimed: true, payment_claimed_at: new Date().toISOString() }
+    setSubmissions(prev =>
+      prev.map(sub =>
+        sub.id === submissionId
+          ? {
+            ...sub,
+            payment_claimed: true,
+            payment_claimed_at: new Date().toISOString(),
+            total_claimed_amount: (sub.total_claimed_amount || 0) + (parseFloat(claimedAmount) || 0)
+          }
           : sub
       )
     );
@@ -213,7 +218,7 @@ const MySubmissions = ({ currentUser }) => {
                   const filePath = isFileObject ? file.file_path : file;
                   const token = localStorage.getItem('firebase_token');
                   const downloadUrl = `${BACKEND_URL}/api/download-file?file_path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`;
-                  
+
                   const getFileStatusColor = (status) => {
                     switch (status) {
                       case 'approved':
@@ -235,7 +240,7 @@ const MySubmissions = ({ currentUser }) => {
                         return <Clock className="w-3 h-3" />;
                     }
                   };
-                  
+
                   return (
                     <div key={index} className="bg-gray-700/30 p-2 rounded">
                       <div className="flex items-center justify-between">
@@ -285,7 +290,7 @@ const MySubmissions = ({ currentUser }) => {
             {submission.approval_percentage !== undefined && (
               <div className="mt-2">
                 <div className="w-full bg-gray-600 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-gradient-to-r from-teal-500 to-green-500 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${Math.min(submission.approval_percentage || 0, 100)}%` }}
                   ></div>
@@ -301,17 +306,7 @@ const MySubmissions = ({ currentUser }) => {
         {/* Payment Status and Action */}
         {(submission.status === 'approved' || submission.payment_claimable) && (
           <div className="mt-4 pt-3 border-t border-gray-700">
-            {submission.payment_claimed ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-400" />
-                  <span className="text-sm text-green-400">Payment Claimed</span>
-                </div>
-                <span className="text-xs text-gray-400">
-                  {formatDate(submission.payment_claimed_at)}
-                </span>
-              </div>
-            ) : submission.payment_claimable ? (
+            {((submission.payment_amount || 0) - (submission.total_claimed_amount || 0)) > 0.0001 ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-teal-400">Payment Ready to Claim</span>
@@ -321,7 +316,7 @@ const MySubmissions = ({ currentUser }) => {
                     className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white"
                   >
                     <Wallet className="w-3 h-3 mr-1" />
-                    Claim {submission.payment_amount ? `${submission.payment_amount.toFixed(4)} ETH` : `${(tasks[submission.task_id]?.budget || 0)} ETH`}
+                    Claim {((submission.payment_amount || 0) - (submission.total_claimed_amount || 0)).toFixed(4)} ETH
                   </Button>
                 </div>
                 {submission.approved_files_count !== undefined && submission.approved_files_count > 0 && (
@@ -329,6 +324,27 @@ const MySubmissions = ({ currentUser }) => {
                     Partial payment for {submission.approved_files_count} approved files
                   </div>
                 )}
+                {submission.payment_claimed && (
+                  <div className="text-xs text-green-400 flex items-center mt-1">
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Previously claimed: {(submission.total_claimed_amount || 0).toFixed(4)} ETH
+                  </div>
+                )}
+              </div>
+            ) : submission.payment_claimed ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-sm text-green-400">Payment Fully Claimed</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-gray-400">
+                    {formatDate(submission.payment_claimed_at)}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Total: {(submission.total_claimed_amount || 0).toFixed(4)} ETH
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="flex items-center space-x-2">
