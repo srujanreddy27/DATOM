@@ -253,10 +253,23 @@ class FileZKPSystem:
         }
         
         # Parse validation code and generate appropriate proofs
-        # Example: "file_size > 1000000"
+        # Example: "file_size > 1MB" or "file_size > 100KB" or "file_size > 1000000"
         if "file_size >" in validation_code:
             try:
-                threshold = int(validation_code.split(">")[1].strip())
+                # Extract the threshold value and convert to bytes
+                threshold_str = validation_code.split(">")[1].strip()
+                
+                # Parse units (MB, KB, or bytes)
+                if threshold_str.upper().endswith('MB'):
+                    # Convert MB to bytes
+                    threshold = int(float(threshold_str[:-2].strip()) * 1024 * 1024)
+                elif threshold_str.upper().endswith('KB'):
+                    # Convert KB to bytes
+                    threshold = int(float(threshold_str[:-2].strip()) * 1024)
+                else:
+                    # Assume bytes if no unit specified
+                    threshold = int(threshold_str)
+                
                 range_proof = prover.prove_greater_than(file_size, threshold, size_commitment)
                 if range_proof:
                     proofs["proofs"].append({

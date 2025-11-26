@@ -259,13 +259,13 @@ const Navigation = React.memo(() => {
       localStorage.removeItem('access_token');
 
       const firebaseToken = localStorage.getItem('firebase_token');
-      
+
       // Test environment mock authentication
-      const isTestEnvironment = window.navigator.webdriver || 
-                               window.location.search.includes('test=true') ||
-                               window.location.search.includes('testsprite=true') ||
-                               document.documentElement.getAttribute('webdriver') === 'true';
-      
+      const isTestEnvironment = window.navigator.webdriver ||
+        window.location.search.includes('test=true') ||
+        window.location.search.includes('testsprite=true') ||
+        document.documentElement.getAttribute('webdriver') === 'true';
+
       if (isTestEnvironment && firebaseToken && firebaseToken.startsWith('mock-token-')) {
         console.log('🧪 Test environment: using mock authentication');
         const cachedUser = localStorage.getItem('cached_user_data') || localStorage.getItem('user_data');
@@ -276,7 +276,7 @@ const Navigation = React.memo(() => {
           return userData;
         }
       }
-      
+
       if (firebaseToken) {
         // Check cache first for faster loading (unless explicitly skipping)
         if (!skipCache) {
@@ -398,13 +398,13 @@ const Navigation = React.memo(() => {
   const connectWallet = async () => {
     try {
       console.log('Attempting to connect wallet...');
-      
+
       // Check if we're in a test environment
-      const isTestEnvironment = window.navigator.webdriver || 
-                               window.location.search.includes('test=true') ||
-                               window.location.search.includes('testsprite=true') ||
-                               document.documentElement.getAttribute('webdriver') === 'true';
-      
+      const isTestEnvironment = window.navigator.webdriver ||
+        window.location.search.includes('test=true') ||
+        window.location.search.includes('testsprite=true') ||
+        document.documentElement.getAttribute('webdriver') === 'true';
+
       if (!window.ethereum) {
         if (isTestEnvironment) {
           console.log('🧪 Test environment: simulating wallet connection');
@@ -421,7 +421,7 @@ const Navigation = React.memo(() => {
 
       // First try to get accounts (this will prompt user if not connected)
       const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-      
+
       if (accounts.length === 0) {
         alert("No accounts found. Please unlock MetaMask and try again.");
         return;
@@ -480,10 +480,10 @@ const Navigation = React.memo(() => {
       });
 
       console.log('Wallet connected successfully:', accounts[0]);
-      
+
     } catch (err) {
       console.error('Wallet connection error:', err);
-      
+
       if (err.code === 4001) {
         alert("Connection rejected. Please approve the connection request in MetaMask.");
       } else if (err.code === -32002) {
@@ -542,8 +542,8 @@ const Navigation = React.memo(() => {
             {/* Right Section - Desktop */}
             <div className="hidden md:flex items-center space-x-4">
 
-              {/* Post Task Button - Always show when logged in */}
-              {user && (
+              {/* Post Task Button - Only show for clients */}
+              {user && user.user_type === 'client' && (
                 <Link to="/post-task">
                   <Button size="sm" className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white shadow-lg hover:shadow-teal-500/25 transition-all duration-200">
                     <Plus className="w-4 h-4 mr-2" />
@@ -732,13 +732,15 @@ const Navigation = React.memo(() => {
                       </div>
                     </div>
 
-                    {/* Primary Action - Always show Post Task */}
-                    <Link to="/post-task" onClick={() => setIsMenuOpen(false)}>
-                      <Button className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white justify-start">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Post Task
-                      </Button>
-                    </Link>
+                    {/* Primary Action - Only show Post Task for clients */}
+                    {user.user_type === 'client' && (
+                      <Link to="/post-task" onClick={() => setIsMenuOpen(false)}>
+                        <Button className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white justify-start">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Post Task
+                        </Button>
+                      </Link>
+                    )}
 
                     {/* Profile Link */}
                     <Link
@@ -863,7 +865,7 @@ const Navigation = React.memo(() => {
                 </Button>
               </div>
             </CardContent>
-            
+
             {/* Subtle floating sparkles */}
             <div className="absolute top-6 left-6 text-2xl animate-bounce opacity-50 text-teal-400">⭐</div>
             <div className="absolute top-8 right-8 text-xl animate-bounce opacity-50 text-cyan-400" style={{ animationDelay: '0.5s' }}>✨</div>
@@ -1783,7 +1785,7 @@ const TasksPage = () => {
   const onFundTask = async (task) => {
     try {
       console.log('🔷 Starting fund escrow for task:', task.id, 'Budget:', task.budget);
-      
+
       if (!window.ethereum) {
         alert("MetaMask not found. Please install MetaMask extension to fund tasks.");
         console.error('MetaMask not detected');
@@ -1791,11 +1793,11 @@ const TasksPage = () => {
       }
 
       console.log('✅ MetaMask detected, requesting accounts...');
-      
+
       // Ensure user has connected wallet and selected an account
       const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
       console.log('Accounts received:', accounts);
-      
+
       if (accounts.length === 0) {
         alert("Please connect your wallet first.");
         console.error('No accounts found');
@@ -1838,18 +1840,18 @@ const TasksPage = () => {
       console.log('From:', selectedAccount);
       console.log('To (Escrow):', ESCROW_ADDRESS);
       console.log('Amount:', task.budget, 'ETH');
-      
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner(selectedAccount);
       const valueWei = ethers.parseEther(String(task.budget));
-      
+
       console.log('📤 Sending transaction...');
       const tx = await signer.sendTransaction({
         from: selectedAccount,
         to: ESCROW_ADDRESS,
         value: valueWei
       });
-      
+
       console.log('⏳ Waiting for confirmation... TX Hash:', tx.hash);
       const receipt = await tx.wait();
       console.log('✅ Transaction confirmed! Block:', receipt.blockNumber);
@@ -1896,7 +1898,7 @@ const TasksPage = () => {
       alert("Escrow funded successfully.");
     } catch (err) {
       console.error('❌ Funding failed:', err);
-      
+
       // Better error messages
       let errorMessage = "Funding failed: ";
       if (err.code === 4001) {
@@ -1908,7 +1910,7 @@ const TasksPage = () => {
       } else {
         errorMessage += "Unknown error occurred.";
       }
-      
+
       alert(errorMessage);
     }
   };
@@ -2002,9 +2004,9 @@ const TasksPage = () => {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {liveTasks.map((task) => (
-              <TaskCard 
-                key={task.id} 
-                task={task} 
+              <TaskCard
+                key={task.id}
+                task={task}
                 onTaskUpdate={(updatedTask) => {
                   setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
                 }}
@@ -2026,9 +2028,9 @@ const TasksPage = () => {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {finishedTasks.map((task) => (
-              <TaskCard 
-                key={task.id} 
-                task={task} 
+              <TaskCard
+                key={task.id}
+                task={task}
                 onTaskUpdate={(updatedTask) => {
                   setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
                 }}
@@ -2092,18 +2094,18 @@ const PostTaskPage = () => {
     const fetchUser = async () => {
       try {
         console.log('PostTaskPage: Checking authentication...');
-        
+
         // Clean up old tokens first
         localStorage.removeItem('access_token');
 
         const firebaseToken = localStorage.getItem('firebase_token');
-        
+
         // Test environment mock authentication
-        const isTestEnvironment = window.navigator.webdriver || 
-                                 window.location.search.includes('test=true') ||
-                                 window.location.search.includes('testsprite=true') ||
-                                 document.documentElement.getAttribute('webdriver') === 'true';
-        
+        const isTestEnvironment = window.navigator.webdriver ||
+          window.location.search.includes('test=true') ||
+          window.location.search.includes('testsprite=true') ||
+          document.documentElement.getAttribute('webdriver') === 'true';
+
         if (isTestEnvironment && firebaseToken && firebaseToken.startsWith('mock-token-')) {
           console.log('🧪 PostTaskPage: Test environment - using mock authentication');
           const cachedUser = localStorage.getItem('cached_user_data') || localStorage.getItem('user_data');
@@ -2120,7 +2122,7 @@ const PostTaskPage = () => {
             return;
           }
         }
-        
+
         if (!firebaseToken) {
           console.log('PostTaskPage: No Firebase token found, redirecting to login');
           // Use window.location.href for proper redirect to login page
@@ -2149,11 +2151,11 @@ const PostTaskPage = () => {
           ...prev,
           client: userData.username
         }));
-        
+
         console.log('PostTaskPage: Authentication successful');
       } catch (error) {
         console.error('PostTaskPage: Failed to fetch user:', error);
-        
+
         // Check if it's a network error vs auth error
         if (error.response?.status === 401) {
           console.log('PostTaskPage: Authentication failed, clearing tokens');
@@ -2220,7 +2222,7 @@ const PostTaskPage = () => {
     setIsSubmitting(true);
 
     let createdTask = null;
-    
+
     try {
       const payload = {
         title: formData.title,
@@ -2233,14 +2235,14 @@ const PostTaskPage = () => {
         expected_files_count: Number(formData.expected_files_count),
         validation_code: formData.validation_code || null,
       };
-      
+
       // Create task on backend first
       console.log('Creating task with payload:', payload);
       const firebaseToken = localStorage.getItem('firebase_token');
       if (!firebaseToken) {
         throw new Error('Authentication required. Please log in again.');
       }
-      
+
       const { data: created } = await axios.post(`${API}/tasks`, payload, {
         headers: { 'Authorization': `Bearer ${firebaseToken}` }
       });
@@ -2250,16 +2252,16 @@ const PostTaskPage = () => {
       // Try to pay ETH to escrow
       if (!window.ethereum) {
         // Task created but payment failed - redirect to fund escrow
-        navigate('/tasks', { 
-          state: { 
+        navigate('/tasks', {
+          state: {
             flash: 'Task created successfully! Please fund the escrow to activate it.',
             showFundEscrow: true,
             taskId: created.id
-          } 
+          }
         });
         return;
       }
-      
+
       // Use connected wallet automatically
       const accounts = await window.ethereum.request({ method: "eth_accounts" });
       if (accounts.length === 0) {
@@ -2268,23 +2270,23 @@ const PostTaskPage = () => {
           const newAccounts = await window.ethereum.request({ method: "eth_requestAccounts" });
           if (newAccounts.length === 0) {
             // Task created but wallet not connected - redirect to fund escrow
-            navigate('/tasks', { 
-              state: { 
+            navigate('/tasks', {
+              state: {
                 flash: 'Task created successfully! Please connect your wallet and fund the escrow to activate it.',
                 showFundEscrow: true,
                 taskId: created.id
-              } 
+              }
             });
             return;
           }
         } catch (walletError) {
           // Task created but wallet connection failed - redirect to fund escrow
-          navigate('/tasks', { 
-            state: { 
+          navigate('/tasks', {
+            state: {
               flash: 'Task created successfully! Please connect your wallet and fund the escrow to activate it.',
               showFundEscrow: true,
               taskId: created.id
-            } 
+            }
           });
           return;
         }
@@ -2309,12 +2311,12 @@ const PostTaskPage = () => {
           });
         } else {
           // Network switch failed - redirect to fund escrow
-          navigate('/tasks', { 
-            state: { 
+          navigate('/tasks', {
+            state: {
               flash: 'Task created successfully! Please switch to the correct network and fund the escrow to activate it.',
               showFundEscrow: true,
               taskId: created.id
-            } 
+            }
           });
           return;
         }
@@ -2324,22 +2326,22 @@ const PostTaskPage = () => {
       try {
         console.log('💰 Funding escrow for newly created task...');
         console.log('From:', selectedAccount, 'To:', ESCROW_ADDRESS, 'Amount:', payload.budget, 'ETH');
-        
+
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner(selectedAccount);
         const valueWei = ethers.parseEther(String(payload.budget));
-        
+
         console.log('📤 Sending transaction...');
         const tx = await signer.sendTransaction({
           from: selectedAccount,
           to: ESCROW_ADDRESS,
           value: valueWei
         });
-        
+
         console.log('⏳ Waiting for confirmation... TX Hash:', tx.hash);
         const receipt = await tx.wait();
         console.log('✅ Transaction confirmed! Block:', receipt.blockNumber);
-        
+
         // Payment successful - mark as funded locally
         try {
           const funded = JSON.parse(localStorage.getItem('fundedTaskIds') || '[]');
@@ -2371,7 +2373,7 @@ const PostTaskPage = () => {
         } catch (error) {
           console.error('Failed to update client spending:', error);
         }
-        
+
         // Payment successful - redirect with success message
         setFormData({
           title: "",
@@ -2385,16 +2387,16 @@ const PostTaskPage = () => {
           validation_code: ""
         });
         navigate('/tasks', { state: { flash: 'Task posted and funded successfully!' } });
-        
+
       } catch (paymentError) {
         console.error("Payment failed:", paymentError);
         // Task created but payment failed - redirect to fund escrow
-        navigate('/tasks', { 
-          state: { 
+        navigate('/tasks', {
+          state: {
             flash: 'Task created successfully! Payment failed - please fund the escrow to activate it.',
             showFundEscrow: true,
             taskId: created.id
-          } 
+          }
         });
       }
 
@@ -2618,7 +2620,7 @@ const PostTaskPage = () => {
                     name="validation_code"
                     value={formData.validation_code}
                     onChange={handleInputChange}
-                    placeholder="file_size > 1000000"
+                    placeholder="file_size > 1MB"
                     rows={3}
                     className="bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 focus:border-teal-500 font-mono text-sm"
                   />
@@ -2633,7 +2635,7 @@ const PostTaskPage = () => {
                       <strong>Available criteria:</strong> <code className="text-teal-400">file_size</code>, <code className="text-teal-400">file_name</code>
                     </p>
                     <p>
-                      <strong>Examples:</strong> <code className="text-yellow-400">file_size &gt; 1000000</code> (proves file is larger than 1MB without revealing exact size), 
+                      <strong>Examples:</strong> <code className="text-yellow-400">file_size &gt; 1MB</code> or <code className="text-yellow-400">file_size &gt; 500KB</code> (proves file size without revealing exact bytes),
                       <code className="text-yellow-400 ml-2">".jpg" in file_name</code> (proves filename contains .jpg without revealing full name)
                     </p>
                   </div>

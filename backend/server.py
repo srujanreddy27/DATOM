@@ -430,7 +430,7 @@ async def get_current_user(authorization: Optional[str] = Header(default=None)) 
             id=str(uuid.uuid4()),
             username=firebase_user["name"],
             email=firebase_user["email"],
-            user_type="freelancer",  # default
+            user_type="client",  # default - will be updated by user during onboarding
             firebase_uid=firebase_user["uid"]
         )
         await save_user(user_obj)
@@ -748,6 +748,73 @@ async def update_task_escrow_status(task_id: str, escrow_status: str, current_us
     
     return {"message": "Escrow status updated successfully", "escrow_status": escrow_status}
 
+@api_router.post("/tasks/{task_id}/complete")
+async def complete_task(task_id: str, current_user: User = Depends(get_current_user)):
+    """Complete a task and return remaining funds to client (if any)"""
+    # Get task data
+    task_data = await firebase_db.get_task_by_id(task_id)
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Check if user is the task owner
+    if task_data.get("client") != current_user.username:
+        raise HTTPException(status_code=403, detail="Only task owner can complete the task")
+    
+    # Check if task is already completed or closed
+    if task_data.get("status") in ["completed", "closed"]:
+        return {"message": "Task is already completed or closed", "status": task_data.get("status")}
+    
+    # Get all submissions for this task
+    submissions_data = await firebase_db.get_submissions_by_task_id(task_id)
+    
+    # Calculate total paid out
+    total_paid = 0.0
+    for sub_data in submissions_data:
+        if sub_data.get("payment_claimed"):
+            total_paid += sub_data.get("payment_amount", 0.0)
+    
+    # Calculate remaining budget
+    total_budget = task_data.get("budget", 0.0)
+    remaining_budget = total_budget - total_paid
+    
+    # If there's remaining budget, return it to client's wallet (if provided)
+    refund_result = None
+    if remaining_budget > 0.01:  # Only refund if > 0.01 ETH
+        client_wallet = task_data.get("client_wallet")
+        if client_wallet:
+            logger.info(f"Refunding {remaining_budget} ETH to client wallet {client_wallet}")
+            refund_result = await transfer_from_escrow(client_wallet, remaining_budget)
+            
+            if not refund_result["success"]:
+                logger.error(f"Failed to refund to client: {refund_result.get('error')}")
+                # Don't fail the completion, but log the error
+    
+    # Update task status to completed
+    await firebase_db.update_task(task_id, {
+        "status": "completed",
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "escrow_status": "released"
+    })
+    
+    response_data = {
+        "message": "Task completed successfully",
+        "status": "completed",
+        "total_budget": total_budget,
+        "total_paid": total_paid,
+        "remaining_budget": remaining_budget
+    }
+    
+    if refund_result and refund_result["success"]:
+        response_data["refund"] = {
+            "amount": remaining_budget,
+            "transaction_hash": refund_result["transaction_hash"],
+            "block_number": refund_result.get("block_number")
+        }
+    elif remaining_budget > 0.01 and not task_data.get("client_wallet"):
+        response_data["message"] += " (No client wallet provided for refund)"
+    
+    return response_data
+
 # User Management Routes
 @api_router.post("/users", response_model=User)
 async def create_user(user: UserCreate):
@@ -799,6 +866,12 @@ async def create_submission(
     # Check if task is still open
     if task_data.get("status") != "open":
         raise HTTPException(status_code=400, detail="Task is no longer accepting submissions")
+    
+    # Check if task deadline has passed
+    if is_past_deadline(task_data.get("deadline", "")):
+        # Auto-close the task if deadline has passed
+        await firebase_db.update_task(task_id, {"status": "closed"})
+        raise HTTPException(status_code=400, detail="Task deadline has passed. This task is now closed.")
     
     # Check if task is funded (escrow status)
     if task_data.get("escrow_status") != "funded":
@@ -1056,9 +1129,19 @@ async def can_submit_to_task(task_id: str, current_user: User = Depends(get_curr
     if not task_data:
         return {"can_submit": False, "reason": "Task not found"}
     
+    # Check if deadline has passed
+    if is_past_deadline(task_data.get("deadline", "")):
+        return {"can_submit": False, "reason": "Task deadline has passed"}
+    
     # Check if task is still open
-    if task_data.get("status") != "open":
-        return {"can_submit": False, "reason": "Task is no longer accepting submissions"}
+    if task_data.get("status") not in ["open"]:
+        status = task_data.get("status", "closed")
+        if status == "completed":
+            return {"can_submit": False, "reason": "Task requirements already met"}
+        elif status == "closed":
+            return {"can_submit": False, "reason": "Task is closed"}
+        else:
+            return {"can_submit": False, "reason": f"Task is {status}"}
     
     # Check if task is funded (escrow status)
     if task_data.get("escrow_status") != "funded":
@@ -1258,6 +1341,10 @@ async def reject_file(
             if file_sub.status == "rejected":
                 raise HTTPException(status_code=400, detail="File is already rejected")
             
+            # Prevent rejecting auto-approved files
+            if file_sub.auto_approved:
+                raise HTTPException(status_code=400, detail="Cannot reject auto-approved files (approved via validation code)")
+            
             file_sub.status = "rejected"
             file_sub.rejected_at = datetime.now(timezone.utc)
             if feedback:
@@ -1332,6 +1419,10 @@ async def reject_file_by_index(
             submission.files[file_index] = file_obj
         else:
             raise HTTPException(status_code=500, detail=f"Invalid file object type: {type(file_obj)}")
+    
+    # Check if file was auto-approved - cannot reject auto-approved files
+    if file_obj.auto_approved:
+        raise HTTPException(status_code=400, detail="Cannot reject auto-approved files (approved via validation code)")
     
     # Reject the file at the specified index
     file_obj.status = "rejected"
@@ -1893,7 +1984,7 @@ async def login(payload: LoginRequest):
         else:
             user_data['username'] = user_data.get('email', '').split('@')[0]
     if 'user_type' not in user_data:
-        user_data['user_type'] = 'freelancer'  # Default to freelancer to match your screenshot
+        user_data['user_type'] = 'client'  # Default to client, user can change during onboarding
     
     user = User(**user_data)
     token = create_access_token({"sub": user.id, "email": user.email})
@@ -1922,7 +2013,7 @@ async def me(authorization: Optional[str] = Header(default=None)):
             user_obj = User(
                 username=firebase_user["name"],
                 email=firebase_user["email"],
-                user_type="freelancer",  # default
+                user_type="client",  # default - will be updated by user during onboarding
                 firebase_uid=firebase_user["uid"],
             )
             await save_user(user_obj)
@@ -2008,7 +2099,7 @@ async def verify_firebase_token_endpoint(authorization: Optional[str] = Header(d
                 else:
                     user_data['username'] = user_data.get('email', '').split('@')[0]
             if 'user_type' not in user_data:
-                user_data['user_type'] = 'freelancer'
+                user_data['user_type'] = 'client'  # Default, user can change during onboarding
             
             user = User(**user_data)
             
@@ -2038,7 +2129,7 @@ async def verify_firebase_token_endpoint(authorization: Optional[str] = Header(d
             user_obj = User(
                 username=firebase_user["name"],
                 email=email,
-                user_type="freelancer",  # default - will be updated by frontend
+                user_type="client",  # default - will be updated by user during onboarding
                 firebase_uid=firebase_user["uid"],
             )
             await save_user(user_obj)
