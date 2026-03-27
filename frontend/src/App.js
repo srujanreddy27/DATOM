@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -8,6 +8,10 @@ import TaskCard from "./components/TaskCard";
 import SubmissionModal from "./components/SubmissionModal";
 import MySubmissions from "./components/MySubmissions";
 import TaskSubmissions from "./components/TaskSubmissions";
+import ProjectCard from "./components/ProjectCard";
+import BidModal from "./components/BidModal";
+import BidChatPanel from "./components/BidChatPanel";
+import MyBidsComponent from "./components/MyBids";
 import { ethers } from "ethers";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
@@ -49,7 +53,15 @@ import {
   User,
   Mail,
   Award,
-  Wallet
+  Wallet,
+  FolderOpen,
+  Layers,
+  ChevronRight,
+  ChevronLeft,
+  MessageSquare,
+  Trash2,
+  AlertCircle,
+  Filter
 } from "lucide-react";
 import { Calendar } from "./components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
@@ -529,28 +541,52 @@ const Navigation = React.memo(() => {
                 <Search className="w-4 h-4 mr-2" />
                 Browse Tasks
               </Link>
+              <Link
+                to="/projects"
+                className="flex items-center px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+              >
+                <Layers className="w-4 h-4 mr-2" />
+                Projects
+              </Link>
               {user && user.user_type === 'freelancer' && (
-                <Link
-                  to="/my-submissions"
-                  className="flex items-center px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
-                >
-                  <Briefcase className="w-4 h-4 mr-2" />
-                  My Submissions
-                </Link>
+                <>
+                  <Link
+                    to="/my-submissions"
+                    className="flex items-center px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                  >
+                    <Briefcase className="w-4 h-4 mr-2" />
+                    My Submissions
+                  </Link>
+                  <Link
+                    to="/my-bids"
+                    className="flex items-center px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                  >
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    My Bids
+                  </Link>
+                </>
               )}
             </div>
 
             {/* Right Section - Desktop */}
             <div className="hidden md:flex items-center space-x-4">
 
-              {/* Post Task Button - Only show for clients */}
+              {/* Post Task + Post Project Buttons - Only show for clients */}
               {user && user.user_type === 'client' && (
-                <Link to="/post-task">
-                  <Button size="sm" className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white shadow-lg hover:shadow-teal-500/25 transition-all duration-200">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Post Task
-                  </Button>
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link to="/post-task">
+                    <Button size="sm" variant="outline" className="border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Post Task
+                    </Button>
+                  </Link>
+                  <Link to="/post-project">
+                    <Button size="sm" className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white shadow-lg hover:shadow-teal-500/25 transition-all duration-200">
+                      <FolderOpen className="w-4 h-4 mr-2" />
+                      Post Project
+                    </Button>
+                  </Link>
+                </div>
               )}
 
               {/* Get Started Button for non-authenticated users */}
@@ -700,15 +736,33 @@ const Navigation = React.memo(() => {
                     <Search className="w-4 h-4 mr-3" />
                     Browse Tasks
                   </Link>
+                  <Link
+                    to="/projects"
+                    className="flex items-center px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Layers className="w-4 h-4 mr-3" />
+                    Browse Projects
+                  </Link>
                   {user && user.user_type === 'freelancer' && (
-                    <Link
-                      to="/my-submissions"
-                      className="flex items-center px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <Briefcase className="w-4 h-4 mr-3" />
-                      My Submissions
-                    </Link>
+                    <>
+                      <Link
+                        to="/my-submissions"
+                        className="flex items-center px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        <Briefcase className="w-4 h-4 mr-3" />
+                        My Submissions
+                      </Link>
+                      <Link
+                        to="/my-bids"
+                        className="flex items-center px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        <MessageSquare className="w-4 h-4 mr-3" />
+                        My Bids
+                      </Link>
+                    </>
                   )}
                 </div>
 
@@ -733,14 +787,22 @@ const Navigation = React.memo(() => {
                       </div>
                     </div>
 
-                    {/* Primary Action - Only show Post Task for clients */}
+                    {/* Primary Actions - Post Task and Post Project for clients */}
                     {user.user_type === 'client' && (
-                      <Link to="/post-task" onClick={() => setIsMenuOpen(false)}>
-                        <Button className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white justify-start">
-                          <Plus className="w-4 h-4 mr-2" />
-                          Post Task
-                        </Button>
-                      </Link>
+                      <div className="space-y-2">
+                        <Link to="/post-task" onClick={() => setIsMenuOpen(false)}>
+                          <Button variant="outline" className="w-full border-gray-600 text-gray-300 hover:bg-gray-800 justify-start">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Post Task
+                          </Button>
+                        </Link>
+                        <Link to="/post-project" onClick={() => setIsMenuOpen(false)}>
+                          <Button className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white justify-start">
+                            <FolderOpen className="w-4 h-4 mr-2" />
+                            Post Project
+                          </Button>
+                        </Link>
+                      </div>
                     )}
 
                     {/* Profile Link */}
@@ -2732,6 +2794,1102 @@ const PostTaskPage = () => {
   );
 };
 
+// ═══════════════════════════════════════════════════════════════
+// PROJECTS PAGE — Browse collaborative projects
+// ═══════════════════════════════════════════════════════════════
+const ProjectsPage = () => {
+  const navigate = useNavigate();
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [bidModalProject, setBidModalProject] = useState(null);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const cached = localStorage.getItem('cached_user_data');
+    if (cached) setUser(JSON.parse(cached));
+  }, []);
+
+  const fetchProjects = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = {};
+      if (filterCategory !== 'all') params.category = filterCategory;
+      const res = await axios.get(`${API}/projects`, { params });
+      setProjects(res.data || []);
+    } catch (err) {
+      setError('Failed to load projects. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchProjects(); }, [filterCategory]);
+
+  const filtered = projects.filter(p =>
+    p.title?.toLowerCase().includes(search.toLowerCase()) ||
+    p.description?.toLowerCase().includes(search.toLowerCase()) ||
+    (p.skills_required || []).some(s => s.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-950 pt-20 pb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <Layers className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-white">Collaborative Projects</h1>
+              <p className="text-gray-400 text-sm">Join a team and bid on your role</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          <div className="relative flex-1 min-w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search projects, skills..."
+              className="pl-10 bg-gray-900/80 border-gray-700 text-white placeholder-gray-500 focus:border-teal-500"
+            />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {['all', ...categories].map(cat => (
+              <button
+                key={cat}
+                onClick={() => setFilterCategory(cat)}
+                className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  filterCategory === cat
+                    ? 'bg-violet-500/20 text-violet-300 border border-violet-500/50'
+                    : 'bg-gray-900/80 text-gray-400 border border-gray-700 hover:border-gray-500'
+                }`}
+              >
+                {cat === 'all' ? 'All' : cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="flex items-center gap-4 mb-6 text-sm text-gray-500">
+          <span>{filtered.length} project{filtered.length !== 1 ? 's' : ''}</span>
+          {search && <span>· Filtered by "{search}"</span>}
+        </div>
+
+        {/* Content */}
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="w-10 h-10 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : error ? (
+          <div className="p-8 bg-red-500/10 border border-red-500/30 rounded-xl text-center">
+            <p className="text-red-400">{error}</p>
+            <Button onClick={fetchProjects} className="mt-3" size="sm">Retry</Button>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 bg-gray-900/50 rounded-full flex items-center justify-center mb-4">
+              <Layers className="w-9 h-9 text-gray-600" />
+            </div>
+            <p className="text-gray-300 font-medium text-lg">No projects found</p>
+            <p className="text-gray-500 text-sm mt-2">
+              {projects.length === 0 ? 'No projects have been posted yet.' : 'Try adjusting your filters.'}
+            </p>
+            {user?.user_type === 'client' && (
+              <Button
+                onClick={() => navigate('/post-project')}
+                className="mt-4 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Post First Project
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filtered.map(project => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                currentUser={user}
+                onViewProject={p => navigate(`/projects/${p.id}`)}
+                onPlaceBid={p => setBidModalProject(p)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Bid Modal */}
+        {bidModalProject && (
+          <BidModal
+            project={bidModalProject}
+            open={!!bidModalProject}
+            onClose={() => setBidModalProject(null)}
+            onSuccess={() => {
+              setBidModalProject(null);
+              fetchProjects();
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+// PROJECT DETAIL PAGE
+// ═══════════════════════════════════════════════════════════════
+const ProjectDetailPage = () => {
+  const { projectId } = window.location.pathname.split('/').reduce((acc, part, i, arr) => {
+    if (arr[i - 1] === 'projects') acc.projectId = part;
+    return acc;
+  }, {});
+  const navigate = useNavigate();
+  const [project, setProject] = useState(null);
+  const [bids, setBids] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [user, setUser] = useState(null);
+  const [selectedBid, setSelectedBid] = useState(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [bidModalOpen, setBidModalOpen] = useState(false);
+  const [pid] = useState(() => window.location.pathname.split('/').filter(Boolean).pop());
+
+  useEffect(() => {
+    const cached = localStorage.getItem('cached_user_data');
+    if (cached) setUser(JSON.parse(cached));
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get(`${API}/projects/${pid}`);
+        setProject(res.data);
+
+        // Fetch bids if owner
+        const cached = localStorage.getItem('cached_user_data');
+        const u = cached ? JSON.parse(cached) : null;
+        if (u && res.data.client_id === u.id) {
+          const bidsRes = await axios.get(`${API}/projects/${pid}/bids`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('firebase_token')}` }
+          });
+          setBids(bidsRes.data || []);
+        }
+      } catch (err) {
+        setError('Failed to load project.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (pid) fetchData();
+  }, [pid]);
+
+  const isOwner = user && project && project.client_id === user.id;
+  const isFreelancer = user && user.user_type === 'freelancer';
+
+  if (loading) return (
+    <div className="min-h-screen bg-gray-950 pt-24 flex items-center justify-center">
+      <div className="w-10 h-10 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  if (error || !project) return (
+    <div className="min-h-screen bg-gray-950 pt-24 flex items-center justify-center">
+      <div className="text-center">
+        <p className="text-red-400 text-lg mb-4">{error || 'Project not found'}</p>
+        <Button onClick={() => navigate('/projects')} variant="outline" className="border-gray-600 text-gray-300">
+          ← Back to Projects
+        </Button>
+      </div>
+    </div>
+  );
+
+  const openRoles = (project.roles || []).filter(r => r.status === 'open');
+  const filledRoles = (project.roles || []).filter(r => r.status === 'filled');
+
+  return (
+    <div className="min-h-screen bg-gray-950 pt-20 pb-12">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6">
+        {/* Back button */}
+        <button
+          onClick={() => navigate('/projects')}
+          className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-6 text-sm"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Projects
+        </button>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main column */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Header card */}
+            <Card className="bg-gray-900/60 border-gray-700">
+              <CardHeader>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-2xl text-white mb-1">{project.title}</CardTitle>
+                    <p className="text-gray-400 text-sm">by {project.client_name}</p>
+                  </div>
+                  <Badge className={`shrink-0 ${project.status === 'open' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-blue-500/20 text-blue-400 border-blue-500/30'}`}>
+                    {project.status?.replace('_', ' ')}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-300 leading-relaxed">{project.description}</p>
+                {project.deliverables && (
+                  <div>
+                    <p className="text-sm text-gray-500 uppercase tracking-wide mb-1">Deliverables</p>
+                    <p className="text-gray-300 text-sm">{project.deliverables}</p>
+                  </div>
+                )}
+                {project.timeline && (
+                  <div>
+                    <p className="text-sm text-gray-500 uppercase tracking-wide mb-1">Timeline</p>
+                    <p className="text-gray-300 text-sm">{project.timeline}</p>
+                  </div>
+                )}
+                {project.skills_required?.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {project.skills_required.map((s, i) => (
+                      <Badge key={i} className="bg-teal-500/10 text-teal-300 border-teal-500/20">{s}</Badge>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Roles section */}
+            <Card className="bg-gray-900/60 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white text-lg flex items-center gap-2">
+                  <Users className="w-5 h-5 text-violet-400" />
+                  Roles ({openRoles.length} open / {filledRoles.length} filled)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {(project.roles || []).map((role, i) => (
+                  <div key={i} className={`p-4 rounded-xl border ${role.status === 'filled' ? 'bg-gray-800/30 border-gray-700 opacity-70' : 'bg-violet-500/5 border-violet-500/20'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className={`font-medium ${role.status === 'filled' ? 'text-gray-400' : 'text-violet-300'}`}>{role.role_name}</h3>
+                          {role.status === 'filled' && <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">Filled ✓</Badge>}
+                        </div>
+                        <p className="text-gray-400 text-sm">{role.description}</p>
+                        {role.filled_by_name && (
+                          <p className="text-green-400 text-xs mt-1">Assigned to: {role.filled_by_name}</p>
+                        )}
+                        {role.skills?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {role.skills.map((s, j) => (
+                              <Badge key={j} className="bg-gray-700/50 text-gray-300 text-xs">{s}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-emerald-400 font-bold">Ξ{role.budget_allocation}</p>
+                        <p className="text-gray-500 text-xs">budget</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-5">
+            {/* Stats card */}
+            <Card className="bg-gray-900/60 border-gray-700">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 text-sm">Total Budget</span>
+                  <span className="text-emerald-400 font-bold text-lg">Ξ{project.total_budget}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 text-sm">Deadline</span>
+                  <span className="text-white text-sm">{project.deadline}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 text-sm">Collaboration</span>
+                  <span className="text-white text-sm capitalize">{project.collaboration_type}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 text-sm">Bids</span>
+                  <span className="text-white text-sm">{project.bids_count || 0}</span>
+                </div>
+
+                {isFreelancer && project.status === 'open' && openRoles.length > 0 && (
+                  <Button
+                    onClick={() => setBidModalOpen(true)}
+                    className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white mt-2"
+                  >
+                    <Briefcase className="w-4 h-4 mr-2" />
+                    Place a Bid
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Bids (client view) */}
+            {isOwner && bids.length > 0 && (
+              <Card className="bg-gray-900/60 border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-white text-base">Bids ({bids.length})</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 max-h-80 overflow-y-auto">
+                  {bids.map(bid => (
+                    <div
+                      key={bid.id}
+                      onClick={() => { setSelectedBid(bid); setChatOpen(true); }}
+                      className="p-3 bg-gray-800/50 border border-gray-700 rounded-lg cursor-pointer hover:border-teal-500/50 transition-colors group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-white text-sm font-medium group-hover:text-teal-300">{bid.freelancer_name}</p>
+                        <span className="text-emerald-400 text-sm font-bold">Ξ{bid.proposed_amount}</span>
+                      </div>
+                      <p className="text-gray-500 text-xs mt-1">{bid.role_name}</p>
+                      <Badge className={`text-xs mt-1 ${bid.status === 'accepted' ? 'bg-green-500/20 text-green-400' : bid.status === 'countered' ? 'bg-blue-500/20 text-blue-400' : bid.status === 'rejected' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                        {bid.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Bid Modal */}
+      {bidModalOpen && (
+        <BidModal
+          project={project}
+          open={bidModalOpen}
+          onClose={() => setBidModalOpen(false)}
+          onSuccess={() => {
+            setBidModalOpen(false);
+            navigate('/my-bids');
+          }}
+        />
+      )}
+
+      {/* Chat Panel */}
+      {selectedBid && (
+        <BidChatPanel
+          bid={selectedBid}
+          isOpen={chatOpen}
+          onClose={() => { setChatOpen(false); setSelectedBid(null); }}
+          currentUser={user}
+          isClientView={isOwner}
+          onBidStatusChange={(bidId, newStatus) => {
+            setBids(prev => prev.map(b => b.id === bidId ? { ...b, status: newStatus } : b));
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+// POST PROJECT PAGE — Multi-step guided form for clients
+// ═══════════════════════════════════════════════════════════════
+const PostProjectPage = () => {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const totalSteps = 4;
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  // Form data
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
+  const [deliverables, setDeliverables] = useState('');
+  const [timeline, setTimeline] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [totalBudget, setTotalBudget] = useState('');
+  const [collaborationType, setCollaborationType] = useState('async');
+  const [skillsInput, setSkillsInput] = useState('');
+  const [skillsRequired, setSkillsRequired] = useState([]);
+  const [roles, setRoles] = useState([{ role_name: '', description: '', budget_allocation: '', skills: [] }]);
+  const [roleSkillInput, setRoleSkillInput] = useState({});
+
+  const addSkill = () => {
+    const s = skillsInput.trim();
+    if (s && !skillsRequired.includes(s)) setSkillsRequired([...skillsRequired, s]);
+    setSkillsInput('');
+  };
+
+  const addRoleSkill = (i) => {
+    const s = (roleSkillInput[i] || '').trim();
+    if (!s) return;
+    const updated = [...roles];
+    if (!updated[i].skills.includes(s)) updated[i].skills = [...updated[i].skills, s];
+    setRoles(updated);
+    setRoleSkillInput(prev => ({ ...prev, [i]: '' }));
+  };
+
+  const removeRoleSkill = (roleIdx, skill) => {
+    const updated = [...roles];
+    updated[roleIdx].skills = updated[roleIdx].skills.filter(s => s !== skill);
+    setRoles(updated);
+  };
+
+  const addRole = () => {
+    setRoles([...roles, { role_name: '', description: '', budget_allocation: '', skills: [] }]);
+  };
+
+  const removeRole = (i) => {
+    if (roles.length <= 1) return;
+    setRoles(roles.filter((_, idx) => idx !== i));
+  };
+
+  const updateRole = (i, field, value) => {
+    const updated = [...roles];
+    updated[i][field] = value;
+    setRoles(updated);
+  };
+
+  const handleSubmit = async () => {
+    setError('');
+    setIsSubmitting(true);
+    try {
+      const token = localStorage.getItem('firebase_token');
+      const payload = {
+        title, description, category,
+        total_budget: parseFloat(totalBudget),
+        deadline,
+        skills_required: skillsRequired,
+        deliverables, timeline,
+        collaboration_type: collaborationType,
+        roles: roles.map(r => ({
+          role_name: r.role_name,
+          description: r.description,
+          budget_allocation: parseFloat(r.budget_allocation) || 0,
+          skills: r.skills,
+          status: 'open',
+        })),
+      };
+      const res = await axios.post(`${API}/projects`, payload, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      // Redirect to payment page — project is 'draft' until payment is confirmed
+      navigate(`/pay-project/${res.data.id}`, { state: { project: res.data } });
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to post project. Please try again.');
+      setIsSubmitting(false);
+    }
+  };
+
+  const canNext = () => {
+    if (step === 1) return title.trim() && description.trim() && category;
+    if (step === 2) return deliverables.trim() && deadline && totalBudget && parseFloat(totalBudget) > 0;
+    if (step === 3) return roles.every(r => r.role_name.trim() && r.description.trim() && r.budget_allocation);
+    return true;
+  };
+
+  const stepTitles = ['Project Basics', 'Budget & Timeline', 'Define Roles', 'Review & Post'];
+
+  return (
+    <div className="min-h-screen bg-gray-950 pt-20 pb-12">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6">
+        {/* Header */}
+        <div className="mb-8 text-center">
+          <div className="w-14 h-14 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-violet-500/25">
+            <FolderOpen className="w-7 h-7 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">Post a Collaborative Project</h1>
+          <p className="text-gray-400">Define roles and let multiple freelancers team up</p>
+        </div>
+
+        {/* Progress */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+            {stepTitles.map((t, i) => (
+              <span key={i} className={`font-medium ${i + 1 === step ? 'text-violet-400' : i + 1 < step ? 'text-green-400' : ''}`}>
+                {i + 1 < step ? '✓ ' : ''}{t}
+              </span>
+            ))}
+          </div>
+          <div className="w-full bg-gray-800 rounded-full h-2">
+            <div
+              className="bg-gradient-to-r from-violet-500 to-purple-500 h-2 rounded-full transition-all duration-500"
+              style={{ width: `${(step / totalSteps) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        <Card className="bg-gray-900/60 border-gray-700">
+          <CardContent className="p-6 space-y-5">
+
+            {/* Step 1: Basics */}
+            {step === 1 && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-white font-medium">Project Title *</Label>
+                  <Input value={title} onChange={e => setTitle(e.target.value)}
+                    placeholder="e.g., Build a Full-Stack DeFi Dashboard"
+                    className="bg-gray-800/50 border-gray-600 text-white placeholder-gray-500 focus:border-violet-500" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-white font-medium">Description *</Label>
+                  <Textarea value={description} onChange={e => setDescription(e.target.value)}
+                    placeholder="Describe the project in detail — what you're building, why it matters, expected outcomes..."
+                    rows={5}
+                    className="bg-gray-800/50 border-gray-600 text-white placeholder-gray-500 focus:border-violet-500 resize-none" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-white font-medium">Category *</Label>
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger className="bg-gray-800/50 border-gray-600 text-white">
+                      <SelectValue placeholder="Select a category..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-900 border-gray-700 text-white">
+                      {categories.map(cat => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-white font-medium">Required Skills (optional)</Label>
+                  <div className="flex gap-2">
+                    <Input value={skillsInput} onChange={e => setSkillsInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addSkill())}
+                      placeholder="React, Node.js, Solidity..."
+                      className="flex-1 bg-gray-800/50 border-gray-600 text-white placeholder-gray-500 focus:border-violet-500" />
+                    <Button type="button" onClick={addSkill} variant="outline" size="sm" className="border-gray-600 text-gray-300 hover:bg-gray-800">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {skillsRequired.map((s, i) => (
+                      <Badge key={i} className="bg-teal-500/10 text-teal-300 border-teal-500/20 flex items-center gap-1">
+                        {s}
+                        <X className="w-3 h-3 cursor-pointer hover:text-red-400" onClick={() => setSkillsRequired(skillsRequired.filter((_, j) => j !== i))} />
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Step 2: Budget & Timeline */}
+            {step === 2 && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-white font-medium">Total Project Budget (ETH) *</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400 font-bold">Ξ</span>
+                    <Input type="number" value={totalBudget} onChange={e => setTotalBudget(e.target.value)}
+                      placeholder="0.5" step="0.01" min="0"
+                      className="pl-8 bg-gray-800/50 border-gray-600 text-white placeholder-gray-500 focus:border-violet-500" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-white font-medium">Deadline *</Label>
+                  <Input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="bg-gray-800/50 border-gray-600 text-white focus:border-violet-500" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-white font-medium">Deliverables *</Label>
+                  <Textarea value={deliverables} onChange={e => setDeliverables(e.target.value)}
+                    placeholder="What will you receive? e.g., Deployed smart contracts, React frontend, API docs, test suite..."
+                    rows={3}
+                    className="bg-gray-800/50 border-gray-600 text-white placeholder-gray-500 focus:border-violet-500 resize-none" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-white font-medium">Internal Timeline / Milestones</Label>
+                  <Textarea value={timeline} onChange={e => setTimeline(e.target.value)}
+                    placeholder="Week 1: Smart contracts; Week 2: Backend API; Week 3: Frontend integration..."
+                    rows={3}
+                    className="bg-gray-800/50 border-gray-600 text-white placeholder-gray-500 focus:border-violet-500 resize-none" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-white font-medium">Collaboration Style</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { value: 'async', label: 'Async', desc: 'Work independently on your schedule' },
+                      { value: 'sync', label: 'Sync', desc: 'Regular standups and meetings' },
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setCollaborationType(opt.value)}
+                        className={`p-3 rounded-xl border text-left transition-all ${collaborationType === opt.value ? 'bg-violet-500/20 border-violet-500/50' : 'bg-gray-800/30 border-gray-700 hover:border-gray-500'}`}
+                      >
+                        <p className={`font-medium text-sm ${collaborationType === opt.value ? 'text-violet-300' : 'text-white'}`}>{opt.label}</p>
+                        <p className="text-gray-500 text-xs mt-0.5">{opt.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Step 3: Roles */}
+            {step === 3 && (
+              <>
+                <p className="text-gray-400 text-sm">Define the roles you need filled. Each freelancer will bid on one role.</p>
+                <div className="space-y-4">
+                  {roles.map((role, i) => (
+                    <div key={i} className="p-4 bg-gray-800/40 border border-gray-700 rounded-xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-violet-400 font-medium text-sm">Role {i + 1}</p>
+                        {roles.length > 1 && (
+                          <button onClick={() => removeRole(i)} className="text-gray-600 hover:text-red-400 transition-colors">
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1 col-span-2 sm:col-span-1">
+                          <Label className="text-gray-300 text-xs">Role Name *</Label>
+                          <Input value={role.role_name} onChange={e => updateRole(i, 'role_name', e.target.value)}
+                            placeholder="e.g., Backend Developer"
+                            className="bg-gray-900/50 border-gray-600 text-white text-sm placeholder-gray-600 h-9" />
+                        </div>
+                        <div className="space-y-1 col-span-2 sm:col-span-1">
+                          <Label className="text-gray-300 text-xs">Budget (ETH) *</Label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400 text-sm font-bold">Ξ</span>
+                            <Input type="number" value={role.budget_allocation} onChange={e => updateRole(i, 'budget_allocation', e.target.value)}
+                              placeholder="0.1" step="0.01" min="0"
+                              className="pl-8 bg-gray-900/50 border-gray-600 text-white text-sm h-9" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-gray-300 text-xs">Description *</Label>
+                        <Textarea value={role.description} onChange={e => updateRole(i, 'description', e.target.value)}
+                          placeholder="What will this person work on?"
+                          rows={2}
+                          className="bg-gray-900/50 border-gray-600 text-white text-sm placeholder-gray-600 resize-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-gray-300 text-xs">Skills for this role</Label>
+                        <div className="flex gap-2">
+                          <Input value={roleSkillInput[i] || ''} onChange={e => setRoleSkillInput(prev => ({ ...prev, [i]: e.target.value }))}
+                            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addRoleSkill(i))}
+                            placeholder="Solidity, Python..."
+                            className="flex-1 bg-gray-900/50 border-gray-600 text-white text-sm h-8 placeholder-gray-600" />
+                          <Button type="button" onClick={() => addRoleSkill(i)} size="sm" variant="outline" className="border-gray-600 text-gray-300 hover:bg-gray-800 h-8 px-2">
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {role.skills.map((s, j) => (
+                            <Badge key={j} className="bg-gray-700/50 text-gray-300 text-xs flex items-center gap-1">
+                              {s}
+                              <X className="w-2.5 h-2.5 cursor-pointer hover:text-red-400" onClick={() => removeRoleSkill(i, s)} />
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <Button type="button" onClick={addRole} variant="outline" className="w-full border-dashed border-gray-600 text-gray-400 hover:bg-gray-800 hover:border-violet-500/50 hover:text-violet-300">
+                    <Plus className="w-4 h-4 mr-2" /> Add Another Role
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {/* Step 4: Review */}
+            {step === 4 && (
+              <div className="space-y-4">
+                <div className="p-4 bg-gray-800/40 border border-gray-700 rounded-xl space-y-3">
+                  <h3 className="text-white font-bold text-lg">{title}</h3>
+                  <p className="text-gray-400 text-sm">{description}</p>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div><span className="text-gray-500">Category:</span> <span className="text-white">{category}</span></div>
+                    <div><span className="text-gray-500">Budget:</span> <span className="text-emerald-400 font-bold">Ξ{totalBudget}</span></div>
+                    <div><span className="text-gray-500">Deadline:</span> <span className="text-white">{deadline}</span></div>
+                    <div><span className="text-gray-500">Style:</span> <span className="text-white capitalize">{collaborationType}</span></div>
+                    <div className="col-span-2"><span className="text-gray-500">Roles:</span> <span className="text-violet-300">{roles.map(r => r.role_name).filter(Boolean).join(', ')}</span></div>
+                  </div>
+                </div>
+                {error && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                    <p className="text-red-400 text-sm">{error}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Navigation */}
+        <div className="flex gap-3 mt-5">
+          {step > 1 && (
+            <Button type="button" variant="outline" onClick={() => setStep(step - 1)} className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800">
+              <ChevronLeft className="w-4 h-4 mr-2" /> Back
+            </Button>
+          )}
+          {step < totalSteps ? (
+            <Button
+              type="button"
+              onClick={() => setStep(step + 1)}
+              disabled={!canNext()}
+              className="flex-1 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white disabled:bg-gray-700 disabled:cursor-not-allowed"
+            >
+              Next <ChevronRight className="w-4 h-4 ml-2" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="flex-1 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white disabled:bg-gray-700"
+            >
+              {isSubmitting ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Posting...
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  Post Project
+                </div>
+              )}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MY BIDS PAGE — Freelancer's bid management page
+// ═══════════════════════════════════════════════════════════════
+const MyBidsPage = () => {
+  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const cached = localStorage.getItem('cached_user_data');
+    if (cached) {
+      const u = JSON.parse(cached);
+      setUser(u);
+      if (u.user_type !== 'freelancer') navigate('/projects');
+    } else {
+      navigate('/');
+    }
+  }, [navigate]);
+
+  if (!user) return (
+    <div className="min-h-screen bg-gray-950 pt-24 flex items-center justify-center">
+      <div className="w-10 h-10 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-950 pt-20 pb-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <MyBidsComponent currentUser={user} />
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+// PROJECT PAYMENT PAGE — Client pays ETH to activate draft project
+// ═══════════════════════════════════════════════════════════════
+const ProjectPaymentPage = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const params = window.location.pathname.split('/').filter(Boolean);
+  const projectId = params[params.length - 1];
+
+  const [project, setProject] = useState(location.state?.project || null);
+  const [loading, setLoading] = useState(!location.state?.project);
+  const [txHash, setTxHash] = useState('');
+  const [isPaying, setIsPaying] = useState(false);
+  const [error, setError] = useState('');
+  const [step, setStep] = useState('pay'); // 'pay' | 'confirming' | 'done'
+  const [account, setAccount] = useState('');
+
+  // Fetch project data if we don't have it from state
+  useEffect(() => {
+    if (!project && projectId) {
+      const token = localStorage.getItem('firebase_token');
+      axios.get(`${API}/projects/${projectId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).then(res => {
+        setProject(res.data);
+        setLoading(false);
+      }).catch(() => {
+        setError('Could not load project details.');
+        setLoading(false);
+      });
+    }
+  }, [projectId]);
+
+  // Auto-connect MetaMask
+  useEffect(() => {
+    if (window.ethereum) {
+      window.ethereum.request({ method: 'eth_accounts' })
+        .then(acc => acc.length > 0 && setAccount(acc[0]))
+        .catch(() => {});
+    }
+  }, []);
+
+  const connectWallet = async () => {
+    if (!window.ethereum) {
+      setError('MetaMask not detected. Please install MetaMask to pay.');
+      return;
+    }
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      setAccount(accounts[0]);
+    } catch {
+      setError('Wallet connection cancelled.');
+    }
+  };
+
+  const payWithMetaMask = async () => {
+    if (!window.ethereum || !account) {
+      await connectWallet();
+      return;
+    }
+    setError('');
+    setIsPaying(true);
+    try {
+      const ESCROW_ADDRESS = process.env.REACT_APP_ESCROW_ADDRESS;
+      if (!ESCROW_ADDRESS) {
+        setError('Escrow contract address not configured. Please set REACT_APP_ESCROW_ADDRESS.');
+        setIsPaying(false);
+        return;
+      }
+
+      // Convert ETH budget to wei (hex string)
+      const amountInWei = BigInt(Math.round(project.total_budget * 1e18));
+      const amountHex = '0x' + amountInWei.toString(16);
+
+      const txParams = {
+        from: account,
+        to: ESCROW_ADDRESS,
+        value: amountHex,
+        gas: '0x5208', // 21000
+      };
+
+      const hash = await window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [txParams],
+      });
+
+      setTxHash(hash);
+      setStep('confirming');
+      // Auto-confirm after getting the hash
+      await confirmPayment(hash);
+    } catch (err) {
+      if (err.code === 4001) {
+        setError('Transaction cancelled by user.');
+      } else {
+        setError(err.message || 'MetaMask transaction failed.');
+      }
+      setIsPaying(false);
+    }
+  };
+
+  const confirmPayment = async (hash) => {
+    setError('');
+    setIsPaying(true);
+    const h = hash || txHash;
+    if (!h || h.trim().length < 10) {
+      setError('Please enter a valid transaction hash.');
+      setIsPaying(false);
+      return;
+    }
+    try {
+      const token = localStorage.getItem('firebase_token');
+      await axios.post(
+        `${API}/projects/${projectId}/pay`,
+        { tx_hash: h.trim() },
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      setStep('done');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Payment confirmation failed. Please try again.');
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="min-h-screen bg-gray-950 pt-24 flex items-center justify-center">
+      <div className="w-10 h-10 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  if (step === 'done') return (
+    <div className="min-h-screen bg-gray-950 pt-20 flex items-center justify-center px-4">
+      <div className="text-center max-w-md">
+        <div className="w-24 h-24 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-green-500/30 animate-bounce">
+          <CheckCircle className="w-12 h-12 text-white" />
+        </div>
+        <h1 className="text-3xl font-bold text-white mb-3">Project is Live! 🎉</h1>
+        <p className="text-gray-400 mb-2">Your project <span className="text-violet-300 font-medium">"{project?.title}"</span> is now visible to all freelancers.</p>
+        <p className="text-gray-500 text-sm mb-8">Freelancers can now browse your project and bid on available roles.</p>
+        <div className="flex gap-3 justify-center">
+          <Button
+            onClick={() => navigate('/projects')}
+            className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white px-6"
+          >
+            <Layers className="w-4 h-4 mr-2" />
+            Browse Projects
+          </Button>
+          <Button
+            onClick={() => navigate(`/projects/${projectId}`)}
+            variant="outline"
+            className="border-gray-600 text-gray-300 hover:bg-gray-800"
+          >
+            View My Project
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const ESCROW_ADDRESS = process.env.REACT_APP_ESCROW_ADDRESS || '0x...';
+
+  return (
+    <div className="min-h-screen bg-gray-950 pt-20 pb-12">
+      <div className="max-w-lg mx-auto px-4 sm:px-6">
+        {/* Header */}
+        <div className="mb-8 text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/25">
+            <Wallet className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">Activate Your Project</h1>
+          <p className="text-gray-400 text-sm">Pay the project budget into escrow to publish your project</p>
+        </div>
+
+        {/* Project summary */}
+        {project && (
+          <Card className="bg-gray-900/60 border-gray-700 mb-6">
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-white font-semibold">{project.title}</p>
+                  <p className="text-gray-400 text-sm mt-0.5">{(project.roles || []).length} role{(project.roles || []).length !== 1 ? 's' : ''} · {project.category}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-emerald-400 font-bold text-xl">Ξ{project.total_budget}</p>
+                  <p className="text-gray-500 text-xs">to lock in escrow</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* How it works */}
+        <div className="mb-6 space-y-3">
+          {[
+            { icon: '1', text: 'Your ETH is sent to our escrow smart contract', color: 'violet' },
+            { icon: '2', text: 'Freelancers can bid — funds are released when work is accepted', color: 'teal' },
+            { icon: '3', text: 'If no suitable match is found, you can cancel and get a refund', color: 'emerald' },
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-3 p-3 bg-gray-800/30 rounded-xl border border-gray-700/50">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                i === 0 ? 'bg-violet-500/20 text-violet-400' : i === 1 ? 'bg-teal-500/20 text-teal-400' : 'bg-emerald-500/20 text-emerald-400'
+              }`}>
+                {item.icon}
+              </div>
+              <p className="text-gray-300 text-sm">{item.text}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Wallet status */}
+        {account ? (
+          <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl mb-4 flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-400 rounded-full" />
+            <span className="text-green-400 text-sm font-mono">{account.slice(0, 8)}...{account.slice(-6)}</span>
+            <span className="text-gray-500 text-xs ml-auto">Connected</span>
+          </div>
+        ) : (
+          <Button onClick={connectWallet} variant="outline" className="w-full border-gray-600 text-gray-300 hover:bg-gray-800 mb-4">
+            <Wallet className="w-4 h-4 mr-2" />
+            Connect MetaMask
+          </Button>
+        )}
+
+        {error && (
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl mb-4">
+            <p className="text-red-400 text-sm">{error}</p>
+          </div>
+        )}
+
+        {/* Pay via MetaMask */}
+        <Button
+          onClick={payWithMetaMask}
+          disabled={isPaying || !account}
+          className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold py-3 h-auto text-base mb-4 shadow-lg shadow-emerald-500/20"
+        >
+          {isPaying ? (
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              {step === 'confirming' ? 'Confirming...' : 'Opening MetaMask...'}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Wallet className="w-5 h-5" />
+              Pay Ξ{project?.total_budget} via MetaMask
+            </div>
+          )}
+        </Button>
+
+        <div className="flex items-center gap-3 my-4">
+          <div className="flex-1 h-px bg-gray-800" />
+          <span className="text-gray-600 text-xs">or paste tx hash manually</span>
+          <div className="flex-1 h-px bg-gray-800" />
+        </div>
+
+        {/* Manual tx hash (fallback) */}
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500 text-center">
+            Send <span className="text-emerald-400 font-bold">Ξ{project?.total_budget}</span> to <span className="text-gray-300 font-mono text-xs">{ESCROW_ADDRESS}</span>
+          </p>
+          <Input
+            value={txHash}
+            onChange={e => setTxHash(e.target.value)}
+            placeholder="0x1234...abcd (your transaction hash)"
+            className="bg-gray-800/50 border-gray-600 text-white placeholder-gray-600 font-mono text-sm"
+          />
+          <Button
+            onClick={() => confirmPayment()}
+            disabled={isPaying || !txHash.trim()}
+            variant="outline"
+            className="w-full border-teal-500/50 text-teal-400 hover:bg-teal-500/10 disabled:border-gray-700 disabled:text-gray-600"
+          >
+            {isPaying ? 'Confirming...' : 'Confirm Transaction Hash'}
+          </Button>
+        </div>
+
+        <p className="text-gray-600 text-xs text-center mt-6">
+          Your project will appear in the marketplace as soon as the transaction is confirmed.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   useEffect(() => {
     // Hide initial loader when React app starts
@@ -2771,6 +3929,11 @@ function App() {
           <Route path="/post-task" element={<PostTaskPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/my-submissions" element={<MySubmissionsPage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+          <Route path="/post-project" element={<PostProjectPage />} />
+          <Route path="/my-bids" element={<MyBidsPage />} />
+          <Route path="/pay-project/:projectId" element={<ProjectPaymentPage />} />
         </Routes>
       </BrowserRouter>
     </div>

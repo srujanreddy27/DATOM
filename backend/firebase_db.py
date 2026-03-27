@@ -33,6 +33,9 @@ AUTH_USERS_COLLECTION = 'auth_users'
 ESCROW_TRANSACTIONS_COLLECTION = 'escrow_transactions'
 PAYMENT_CLAIMS_COLLECTION = 'payment_claims'
 OTP_COLLECTION = 'otp_codes'
+PROJECTS_COLLECTION = 'projects'
+BIDS_COLLECTION = 'bids'
+CHAT_MESSAGES_COLLECTION = 'chat_messages'
 
 class FirebaseDB:
     def __init__(self):
@@ -46,6 +49,9 @@ class FirebaseDB:
         self.memory_escrow_transactions = []
         self.memory_payment_claims = []
         self.memory_otp_codes = []
+        self.memory_projects = []
+        self.memory_bids = []
+        self.memory_chat_messages = []
         
         if self.use_memory:
             logger.warning("Using in-memory storage as Firestore is not available")
@@ -765,6 +771,188 @@ class FirebaseDB:
                 logger.info(f"🧹 Cleaned up {deleted_count} expired OTPs from memory")
         except Exception as e:
             logger.error(f"❌ Failed to cleanup expired OTPs: {e}")
+
+    # ─────────────── Project operations ───────────────
+
+    async def save_project(self, project_data: dict) -> bool:
+        try:
+            if self.db:
+                prepared = self.prepare_for_firestore(project_data)
+                self.db.collection(PROJECTS_COLLECTION).document(project_data['id']).set(prepared)
+                return True
+            else:
+                self.memory_projects.append(project_data)
+                return True
+        except Exception as e:
+            logger.error(f"Failed to save project: {e}")
+            return False
+
+    async def get_all_projects(self) -> List[dict]:
+        try:
+            if self.db:
+                docs = self.db.collection(PROJECTS_COLLECTION).stream()
+                return [doc.to_dict() for doc in docs]
+            else:
+                return self.memory_projects.copy()
+        except Exception as e:
+            logger.error(f"Failed to get projects: {e}")
+            return []
+
+    async def get_project_by_id(self, project_id: str) -> Optional[dict]:
+        try:
+            if self.db:
+                doc = self.db.collection(PROJECTS_COLLECTION).document(project_id).get()
+                return doc.to_dict() if doc.exists else None
+            else:
+                return next((p for p in self.memory_projects if p.get('id') == project_id), None)
+        except Exception as e:
+            logger.error(f"Failed to get project by ID: {e}")
+            return None
+
+    async def get_projects_by_client(self, client_id: str) -> List[dict]:
+        try:
+            if self.db:
+                docs = self.db.collection(PROJECTS_COLLECTION).where('client_id', '==', client_id).stream()
+                return [doc.to_dict() for doc in docs]
+            else:
+                return [p for p in self.memory_projects if p.get('client_id') == client_id]
+        except Exception as e:
+            logger.error(f"Failed to get projects by client: {e}")
+            return []
+
+    async def update_project(self, project_id: str, update_data: dict) -> bool:
+        try:
+            if self.db:
+                prepared = self.prepare_for_firestore(update_data)
+                self.db.collection(PROJECTS_COLLECTION).document(project_id).update(prepared)
+                return True
+            else:
+                for i, p in enumerate(self.memory_projects):
+                    if p.get('id') == project_id:
+                        self.memory_projects[i].update(update_data)
+                        return True
+                return False
+        except Exception as e:
+            logger.error(f"Failed to update project: {e}")
+            return False
+
+    # ─────────────── Bid operations ───────────────
+
+    async def save_bid(self, bid_data: dict) -> bool:
+        try:
+            if self.db:
+                prepared = self.prepare_for_firestore(bid_data)
+                self.db.collection(BIDS_COLLECTION).document(bid_data['id']).set(prepared)
+                return True
+            else:
+                self.memory_bids.append(bid_data)
+                return True
+        except Exception as e:
+            logger.error(f"Failed to save bid: {e}")
+            return False
+
+    async def get_bids_by_project_id(self, project_id: str) -> List[dict]:
+        try:
+            if self.db:
+                docs = self.db.collection(BIDS_COLLECTION).where('project_id', '==', project_id).stream()
+                return [doc.to_dict() for doc in docs]
+            else:
+                return [b for b in self.memory_bids if b.get('project_id') == project_id]
+        except Exception as e:
+            logger.error(f"Failed to get bids by project ID: {e}")
+            return []
+
+    async def get_bids_by_freelancer_id(self, freelancer_id: str) -> List[dict]:
+        try:
+            if self.db:
+                docs = self.db.collection(BIDS_COLLECTION).where('freelancer_id', '==', freelancer_id).stream()
+                return [doc.to_dict() for doc in docs]
+            else:
+                return [b for b in self.memory_bids if b.get('freelancer_id') == freelancer_id]
+        except Exception as e:
+            logger.error(f"Failed to get bids by freelancer ID: {e}")
+            return []
+
+    async def get_bid_by_id(self, bid_id: str) -> Optional[dict]:
+        try:
+            if self.db:
+                doc = self.db.collection(BIDS_COLLECTION).document(bid_id).get()
+                return doc.to_dict() if doc.exists else None
+            else:
+                return next((b for b in self.memory_bids if b.get('id') == bid_id), None)
+        except Exception as e:
+            logger.error(f"Failed to get bid by ID: {e}")
+            return None
+
+    async def update_bid(self, bid_id: str, update_data: dict) -> bool:
+        try:
+            if self.db:
+                prepared = self.prepare_for_firestore(update_data)
+                self.db.collection(BIDS_COLLECTION).document(bid_id).update(prepared)
+                return True
+            else:
+                for i, b in enumerate(self.memory_bids):
+                    if b.get('id') == bid_id:
+                        self.memory_bids[i].update(update_data)
+                        return True
+                return False
+        except Exception as e:
+            logger.error(f"Failed to update bid: {e}")
+            return False
+
+    async def check_existing_bid(self, project_id: str, freelancer_id: str, role_name: str) -> Optional[dict]:
+        """Check if freelancer already bid on this role"""
+        try:
+            if self.db:
+                docs = self.db.collection(BIDS_COLLECTION)\
+                    .where('project_id', '==', project_id)\
+                    .where('freelancer_id', '==', freelancer_id)\
+                    .where('role_name', '==', role_name).limit(1).stream()
+                for doc in docs:
+                    return doc.to_dict()
+                return None
+            else:
+                return next(
+                    (b for b in self.memory_bids
+                     if b.get('project_id') == project_id
+                     and b.get('freelancer_id') == freelancer_id
+                     and b.get('role_name') == role_name),
+                    None
+                )
+        except Exception as e:
+            logger.error(f"Failed to check existing bid: {e}")
+            return None
+
+    # ─────────────── Chat message operations ───────────────
+
+    async def save_chat_message(self, message_data: dict) -> bool:
+        try:
+            if self.db:
+                prepared = self.prepare_for_firestore(message_data)
+                self.db.collection(CHAT_MESSAGES_COLLECTION).document(message_data['id']).set(prepared)
+                return True
+            else:
+                self.memory_chat_messages.append(message_data)
+                return True
+        except Exception as e:
+            logger.error(f"Failed to save chat message: {e}")
+            return False
+
+    async def get_messages_by_bid_id(self, bid_id: str) -> List[dict]:
+        try:
+            if self.db:
+                docs = self.db.collection(CHAT_MESSAGES_COLLECTION)\
+                    .where('bid_id', '==', bid_id)\
+                    .order_by('timestamp').stream()
+                return [doc.to_dict() for doc in docs]
+            else:
+                msgs = [m for m in self.memory_chat_messages if m.get('bid_id') == bid_id]
+                msgs.sort(key=lambda m: m.get('timestamp', ''))
+                return msgs
+        except Exception as e:
+            logger.error(f"Failed to get chat messages: {e}")
+            return []
+
 
 # Global instance
 firebase_db = FirebaseDB()

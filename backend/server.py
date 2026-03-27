@@ -188,7 +188,86 @@ class PaymentClaim(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: Optional[datetime] = None
 
-# ---------------- Authentication Models/Setup ----------------
+# ─────────────── Collaborative Projects Models ───────────────
+
+class ProjectRole(BaseModel):
+    role_name: str
+    description: str
+    budget_allocation: float
+    skills: List[str] = []
+    filled_by_freelancer_id: Optional[str] = None
+    filled_by_name: Optional[str] = None
+    status: str = "open"  # open, filled
+
+class Project(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    category: str
+    total_budget: float
+    deadline: str
+    client_id: str
+    client_name: str
+    status: str = "draft"  # draft → open (after payment) → in_progress → completed/cancelled
+    roles: List[ProjectRole] = []
+    skills_required: List[str] = []
+    deliverables: str = ""
+    timeline: str = ""
+    collaboration_type: str = "async"  # async, sync
+    escrow_tx_hash: Optional[str] = None  # blockchain tx after client payment
+    bids_count: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ProjectCreate(BaseModel):
+    title: str
+    description: str
+    category: str
+    total_budget: float
+    deadline: str
+    skills_required: List[str] = []
+    deliverables: str = ""
+    timeline: str = ""
+    collaboration_type: str = "async"
+    roles: List[ProjectRole] = []
+
+class Bid(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    project_id: str
+    project_title: str = ""
+    freelancer_id: str
+    freelancer_name: str
+    role_name: str
+    proposed_amount: float
+    message: str
+    status: str = "pending"  # pending, accepted, rejected, countered, withdrawn
+    counter_amount: Optional[float] = None
+    counter_message: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = None
+
+class BidCreate(BaseModel):
+    project_id: str
+    role_name: str
+    proposed_amount: float
+    message: str
+
+class CounterOffer(BaseModel):
+    counter_amount: float
+    counter_message: str = ""
+
+class ChatMessage(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    bid_id: str
+    sender_id: str
+    sender_name: str
+    message: str
+    is_client: bool = False
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ChatMessageCreate(BaseModel):
+    message: str
+
+
 class SignupRequest(BaseModel):
     email: str
     password: str
@@ -2753,6 +2832,433 @@ async def get_platform_stats():
         "success_rate": 98.5
     }
 
+
+# ─── Helpers ──────────────────────────────────────────────────
+def is_past_deadline(deadline_str: str) -> bool:
+    """Return True if deadline_str (YYYY-MM-DD) is before today."""
+    from datetime import date
+    deadline_date = date.fromisoformat(deadline_str)  # raises ValueError on bad format
+    return deadline_date < date.today()
+
+# ═══════════════════════════════════════════════════════════════
+# PROJECT ROUTES
+# ═══════════════════════════════════════════════════════════════
+
+@api_router.post("/projects", response_model=Project)
+async def create_project(project: ProjectCreate, current_user: User = Depends(get_current_user)):
+    """Client posts a collaborative project with role slots"""
+    if current_user.user_type != "client":
+        raise HTTPException(status_code=403, detail="Only clients can post projects")
+
+    if project.total_budget <= 0:
+        raise HTTPException(status_code=400, detail="Budget must be greater than 0")
+
+    try:
+        if is_past_deadline(project.deadline):
+            raise HTTPException(status_code=400, detail="Deadline must be today or in the future")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid deadline format. Use YYYY-MM-DD")
+
+    project_obj = Project(
+        **project.dict(),
+        client_id=current_user.id,
+        client_name=current_user.username,
+    )
+
+    success = await firebase_db.save_project(project_obj.dict())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save project")
+
+    return project_obj
+
+
+@api_router.get("/projects", response_model=List[Project])
+async def get_projects(
+    category: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50
+):
+    """Browse all publicly visible projects (excludes drafts)"""
+    all_projects = await firebase_db.get_all_projects()
+    result = []
+    for p in all_projects:
+        # Never show draft projects in the public listing
+        if p.get("status") == "draft":
+            continue
+        if category and category != "all" and p.get("category") != category:
+            continue
+        if status and p.get("status") != status:
+            continue
+        try:
+            result.append(Project(**p))
+        except Exception:
+            pass
+    return result[:limit]
+
+
+@api_router.get("/projects/my-projects", response_model=List[Project])
+async def get_my_projects(current_user: User = Depends(get_current_user)):
+    """Get projects posted by authenticated client"""
+    if current_user.user_type != "client":
+        raise HTTPException(status_code=403, detail="Only clients can view their projects")
+    projects = await firebase_db.get_projects_by_client(current_user.id)
+    result = []
+    for p in projects:
+        try:
+            result.append(Project(**p))
+        except Exception:
+            pass
+    return result
+
+
+@api_router.get("/projects/{project_id}", response_model=Project)
+async def get_project(project_id: str):
+    """Get a specific project by ID"""
+    project_data = await firebase_db.get_project_by_id(project_id)
+    if not project_data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return Project(**project_data)
+
+
+@api_router.put("/projects/{project_id}/status")
+async def update_project_status(
+    project_id: str,
+    status: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Update project status (owner only)"""
+    project_data = await firebase_db.get_project_by_id(project_id)
+    if not project_data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project_data.get("client_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the project owner can update status")
+    valid_statuses = ["open", "in_progress", "completed", "cancelled"]
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
+    await firebase_db.update_project(project_id, {"status": status})
+    return {"message": "Project status updated", "status": status}
+
+
+class ProjectPayment(BaseModel):
+    tx_hash: str  # Blockchain transaction hash proving payment
+
+
+@api_router.post("/projects/{project_id}/pay")
+async def pay_for_project(
+    project_id: str,
+    payment: ProjectPayment,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Client submits their ETH transaction hash to activate a draft project.
+    Once verified, the project status changes from 'draft' → 'open' and
+    becomes visible to all freelancers.
+    """
+    project_data = await firebase_db.get_project_by_id(project_id)
+    if not project_data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project_data.get("client_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the project owner can activate it")
+    if project_data.get("status") != "draft":
+        raise HTTPException(status_code=400, detail="Project is already active or has been cancelled")
+
+    if not payment.tx_hash or len(payment.tx_hash) < 10:
+        raise HTTPException(status_code=400, detail="Invalid transaction hash")
+
+    # Optional on-chain verification: confirm tx exists on the network
+    # (Lightweight check — just confirm the hash is a real tx, not depth-validate amount)
+    try:
+        w3 = Web3(Web3.HTTPProvider(os.environ.get("RPC_URL", "http://127.0.0.1:8545")))
+        if w3.is_connected():
+            tx = w3.eth.get_transaction(payment.tx_hash)
+            if tx is None:
+                raise HTTPException(status_code=400, detail="Transaction not found on-chain. Please wait for it to be mined.")
+    except HTTPException:
+        raise
+    except Exception:
+        # If node is unreachable just trust the hash (offline/testnet scenario)
+        pass
+
+    # Activate the project
+    await firebase_db.update_project(project_id, {
+        "status": "open",
+        "escrow_tx_hash": payment.tx_hash,
+    })
+
+    return {
+        "message": "Project activated! It is now visible to all freelancers.",
+        "project_id": project_id,
+        "status": "open",
+        "tx_hash": payment.tx_hash,
+    }
+
+
+# BID ROUTES
+# ═══════════════════════════════════════════════════════════════
+
+@api_router.post("/bids", response_model=Bid)
+async def place_bid(bid_data: BidCreate, current_user: User = Depends(get_current_user)):
+    """Freelancer places a bid on a project role"""
+    if current_user.user_type != "freelancer":
+        raise HTTPException(status_code=403, detail="Only freelancers can place bids")
+
+    # Validate project exists
+    project_data = await firebase_db.get_project_by_id(bid_data.project_id)
+    if not project_data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project_data.get("status") != "open":
+        raise HTTPException(status_code=400, detail="Project is no longer accepting bids")
+
+    # Validate role exists in project
+    roles = project_data.get("roles", [])
+    target_role = next((r for r in roles if r.get("role_name") == bid_data.role_name), None)
+    if not target_role:
+        raise HTTPException(status_code=400, detail=f"Role '{bid_data.role_name}' not found in project")
+    if target_role.get("status") == "filled":
+        raise HTTPException(status_code=400, detail=f"Role '{bid_data.role_name}' is already filled")
+
+    # Prevent duplicate bids on same role
+    existing = await firebase_db.check_existing_bid(bid_data.project_id, current_user.id, bid_data.role_name)
+    if existing:
+        raise HTTPException(status_code=400, detail="You have already bid on this role")
+
+    bid_obj = Bid(
+        project_id=bid_data.project_id,
+        project_title=project_data.get("title", ""),
+        freelancer_id=current_user.id,
+        freelancer_name=current_user.username,
+        role_name=bid_data.role_name,
+        proposed_amount=bid_data.proposed_amount,
+        message=bid_data.message,
+    )
+
+    success = await firebase_db.save_bid(bid_obj.dict())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save bid")
+
+    # Update bids_count on project
+    await firebase_db.update_project(bid_data.project_id, {
+        "bids_count": len(await firebase_db.get_bids_by_project_id(bid_data.project_id))
+    })
+
+    return bid_obj
+
+
+@api_router.get("/bids/my-bids", response_model=List[Bid])
+async def get_my_bids(current_user: User = Depends(get_current_user)):
+    """Get all bids placed by the authenticated freelancer"""
+    if current_user.user_type != "freelancer":
+        raise HTTPException(status_code=403, detail="Only freelancers can view their bids")
+    bids = await firebase_db.get_bids_by_freelancer_id(current_user.id)
+    result = []
+    for b in bids:
+        try:
+            result.append(Bid(**b))
+        except Exception:
+            pass
+    return result
+
+
+@api_router.get("/projects/{project_id}/bids", response_model=List[Bid])
+async def get_project_bids(project_id: str, current_user: User = Depends(get_current_user)):
+    """Get all bids for a project (project owner only)"""
+    project_data = await firebase_db.get_project_by_id(project_id)
+    if not project_data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project_data.get("client_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the project owner can view all bids")
+    bids = await firebase_db.get_bids_by_project_id(project_id)
+    result = []
+    for b in bids:
+        try:
+            result.append(Bid(**b))
+        except Exception:
+            pass
+    return result
+
+
+@api_router.get("/bids/{bid_id}", response_model=Bid)
+async def get_bid(bid_id: str, current_user: User = Depends(get_current_user)):
+    """Get a specific bid"""
+    bid_data = await firebase_db.get_bid_by_id(bid_id)
+    if not bid_data:
+        raise HTTPException(status_code=404, detail="Bid not found")
+    # Allow access to bid owner or project owner
+    project_data = await firebase_db.get_project_by_id(bid_data.get("project_id", ""))
+    is_project_owner = project_data and project_data.get("client_id") == current_user.id
+    is_bid_owner = bid_data.get("freelancer_id") == current_user.id
+    if not is_project_owner and not is_bid_owner:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return Bid(**bid_data)
+
+
+@api_router.put("/bids/{bid_id}/accept")
+async def accept_bid(bid_id: str, current_user: User = Depends(get_current_user)):
+    """Client accepts a bid — marks the role as filled"""
+    bid_data = await firebase_db.get_bid_by_id(bid_id)
+    if not bid_data:
+        raise HTTPException(status_code=404, detail="Bid not found")
+
+    project_data = await firebase_db.get_project_by_id(bid_data.get("project_id", ""))
+    if not project_data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project_data.get("client_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the project owner can accept bids")
+    if bid_data.get("status") != "pending" and bid_data.get("status") != "countered":
+        raise HTTPException(status_code=400, detail="Bid is not in a pending/countered state")
+
+    # Mark bid as accepted
+    await firebase_db.update_bid(bid_id, {
+        "status": "accepted",
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    # Mark role as filled in project
+    roles = project_data.get("roles", [])
+    role_name = bid_data.get("role_name")
+    updated_roles = []
+    for r in roles:
+        if r.get("role_name") == role_name and r.get("status") == "open":
+            r["status"] = "filled"
+            r["filled_by_freelancer_id"] = bid_data.get("freelancer_id")
+            r["filled_by_name"] = bid_data.get("freelancer_name")
+        updated_roles.append(r)
+
+    # Check if all roles are filled → update project status
+    all_filled = all(r.get("status") == "filled" for r in updated_roles)
+    await firebase_db.update_project(bid_data.get("project_id"), {
+        "roles": updated_roles,
+        "status": "in_progress" if all_filled else project_data.get("status", "open")
+    })
+
+    return {"message": "Bid accepted successfully", "bid_id": bid_id}
+
+
+@api_router.put("/bids/{bid_id}/reject")
+async def reject_bid(bid_id: str, current_user: User = Depends(get_current_user)):
+    """Client rejects a bid"""
+    bid_data = await firebase_db.get_bid_by_id(bid_id)
+    if not bid_data:
+        raise HTTPException(status_code=404, detail="Bid not found")
+
+    project_data = await firebase_db.get_project_by_id(bid_data.get("project_id", ""))
+    if not project_data or project_data.get("client_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the project owner can reject bids")
+
+    await firebase_db.update_bid(bid_id, {
+        "status": "rejected",
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    })
+    return {"message": "Bid rejected", "bid_id": bid_id}
+
+
+@api_router.put("/bids/{bid_id}/counter")
+async def counter_offer(
+    bid_id: str,
+    offer: CounterOffer,
+    current_user: User = Depends(get_current_user)
+):
+    """Client sends a counter-offer on a bid"""
+    bid_data = await firebase_db.get_bid_by_id(bid_id)
+    if not bid_data:
+        raise HTTPException(status_code=404, detail="Bid not found")
+
+    project_data = await firebase_db.get_project_by_id(bid_data.get("project_id", ""))
+    if not project_data or project_data.get("client_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the project owner can counter bids")
+
+    await firebase_db.update_bid(bid_id, {
+        "status": "countered",
+        "counter_amount": offer.counter_amount,
+        "counter_message": offer.counter_message,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    # Auto-post counter message in chat
+    msg_obj = ChatMessage(
+        bid_id=bid_id,
+        sender_id=current_user.id,
+        sender_name=current_user.username,
+        message=f"💬 Counter Offer: Ξ{offer.counter_amount}" + (f" — {offer.counter_message}" if offer.counter_message else ""),
+        is_client=True,
+    )
+    await firebase_db.save_chat_message(msg_obj.dict())
+
+    return {"message": "Counter offer sent", "bid_id": bid_id, "counter_amount": offer.counter_amount}
+
+
+@api_router.put("/bids/{bid_id}/withdraw")
+async def withdraw_bid(bid_id: str, current_user: User = Depends(get_current_user)):
+    """Freelancer withdraws their bid"""
+    bid_data = await firebase_db.get_bid_by_id(bid_id)
+    if not bid_data:
+        raise HTTPException(status_code=404, detail="Bid not found")
+    if bid_data.get("freelancer_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only withdraw your own bids")
+    if bid_data.get("status") == "accepted":
+        raise HTTPException(status_code=400, detail="Cannot withdraw an accepted bid")
+    await firebase_db.update_bid(bid_id, {
+        "status": "withdrawn",
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    })
+    return {"message": "Bid withdrawn successfully"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# CHAT MESSAGE ROUTES
+# ═══════════════════════════════════════════════════════════════
+
+@api_router.post("/bids/{bid_id}/messages", response_model=ChatMessage)
+async def send_chat_message(
+    bid_id: str,
+    msg: ChatMessageCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Send a chat message in a bid thread"""
+    bid_data = await firebase_db.get_bid_by_id(bid_id)
+    if not bid_data:
+        raise HTTPException(status_code=404, detail="Bid not found")
+
+    # Check permission: only bid owner (freelancer) or project owner (client)
+    project_data = await firebase_db.get_project_by_id(bid_data.get("project_id", ""))
+    is_project_owner = project_data and project_data.get("client_id") == current_user.id
+    is_bid_owner = bid_data.get("freelancer_id") == current_user.id
+    if not is_project_owner and not is_bid_owner:
+        raise HTTPException(status_code=403, detail="Access denied to this chat")
+
+    msg_obj = ChatMessage(
+        bid_id=bid_id,
+        sender_id=current_user.id,
+        sender_name=current_user.username,
+        message=msg.message,
+        is_client=is_project_owner,
+    )
+    await firebase_db.save_chat_message(msg_obj.dict())
+    return msg_obj
+
+
+@api_router.get("/bids/{bid_id}/messages", response_model=List[ChatMessage])
+async def get_chat_messages(bid_id: str, current_user: User = Depends(get_current_user)):
+    """Get all chat messages for a bid thread"""
+    bid_data = await firebase_db.get_bid_by_id(bid_id)
+    if not bid_data:
+        raise HTTPException(status_code=404, detail="Bid not found")
+
+    project_data = await firebase_db.get_project_by_id(bid_data.get("project_id", ""))
+    is_project_owner = project_data and project_data.get("client_id") == current_user.id
+    is_bid_owner = bid_data.get("freelancer_id") == current_user.id
+    if not is_project_owner and not is_bid_owner:
+        raise HTTPException(status_code=403, detail="Access denied to this chat")
+
+    messages = await firebase_db.get_messages_by_bid_id(bid_id)
+    result = []
+    for m in messages:
+        try:
+            result.append(ChatMessage(**m))
+        except Exception:
+            pass
+    return result
+
 # Include the router in the main app
 app.include_router(api_router)
 
@@ -2768,6 +3274,9 @@ app.add_middleware(
     expose_headers=["*"],  # Expose all headers for debugging
 )
 
+# ── Mount the api_router (registers all /api/projects, /api/bids, chat routes) ──
+app.include_router(api_router)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -2779,6 +3288,3 @@ logger = logging.getLogger(__name__)
 async def shutdown_db_client():
     # MongoDB client shutdown disabled - using Firebase
     pass
-
-
-
