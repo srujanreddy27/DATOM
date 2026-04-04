@@ -127,4 +127,4 @@ https://book.getfoundry.sh/getting-started/installation
 
 ---
 
-**Happy Coding! 🎉**
+![Visitors](https://visitor-badge.laobi.icu/badge?page_id=srujanreddy27.DATOM)
