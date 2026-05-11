@@ -9,11 +9,5 @@
         }
       ]
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/__/auth/(.*)",
-      "destination": "https://datom-19e9a.firebaseapp.com/__/auth/$1"
-    }
   ]
 }

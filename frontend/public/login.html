@@ -1209,15 +1209,6 @@
     // Optimized initialization - faster startup
     try {
       firebaseConfig = loadFirebaseConfig();
-      
-      // CRITICAL FIX FOR VERCEL REDIRECT AUTH:
-      // If we are on Vercel, use the Vercel domain as the authDomain.
-      // Combined with vercel.json rewrites, this forces Firebase to use FIRST-PARTY cookies!
-      // (We skip this on localhost to avoid the Google Cloud HTTPS redirect_uri_mismatch error).
-      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        firebaseConfig.authDomain = window.location.host;
-      }
-      
       firebase.initializeApp(firebaseConfig);
       auth = firebase.auth();
       db = firebase.firestore();
