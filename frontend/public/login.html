@@ -1944,9 +1944,14 @@
             return;
           } catch (error) {
             console.log('Existing session failed, proceeding with new sign-in:', error);
-            // Continue with new sign-in if existing session fails
+            // IMPORTANT: Because we 'awaited' the backend request, the browser's 
+            // 1-second synchronous click window has expired! If we try to open a 
+            // popup now, the browser will block it as unprompted.
+            // We must sign them out and ask them to click again.
+            try { await auth.signOut(); } catch(e) {}
+            handleSignInError(new Error("Session refreshed. Please click 'Continue with Google' again."), loadingEl, loadingText);
+            return;
           }
-        }
 
 
 
