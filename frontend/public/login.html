@@ -1292,9 +1292,19 @@
             localStorage.setItem('auth_method', 'firebase');
             console.log('Firebase token stored for main app');
 
-            // User is already signed in with Firebase, redirect to main app
-            console.log('Firebase user already signed in, redirecting to main app...');
-            window.location.href = '/';
+            const loadingEl = document.getElementById('loading');
+            const loadingText = document.getElementById('loadingText');
+            const progressBar = document.getElementById('progressBar');
+            
+            if (loadingEl && loadingText && progressBar) {
+              loadingEl.style.display = 'flex';
+              loadingText.textContent = 'Verifying session with server...';
+              progressBar.style.width = '80%';
+            }
+
+            // Always verify with backend before redirecting to the main app
+            await verifyWithBackend(idToken, loadingText, progressBar, loadingEl);
+            
           } catch (error) {
             console.error('Error getting token for existing user:', error);
             window.location.href = '/';
@@ -1942,70 +1952,70 @@
       }
     });
 
-    // Fast Google sign-in with redirect (properly handled)
-    async function googleSignIn() {
+    // Fast Google sign-in (Completely synchronous to bypass aggressive popup blockers)
+    function googleSignIn() {
       const loadingEl = document.getElementById('loading');
       const loadingText = document.getElementById('loadingText');
       const progressBar = document.getElementById('progressBar');
 
-      try {
-        // Show enhanced loading immediately
-        loadingEl.style.display = 'flex';
-        loadingText.textContent = 'Initializing...';
-        progressBar.style.width = '10%';
+      // Show enhanced loading immediately
+      loadingEl.style.display = 'flex';
+      loadingText.textContent = 'Initializing...';
+      progressBar.style.width = '10%';
 
-        // Show loading state on faces
-        mouths.forEach(mouth => {
-          mouth.classList.remove('flat', 'smile', 'sad');
-          mouth.classList.add('smile');
-        });
+      // Show loading state on faces
+      mouths.forEach(mouth => {
+        mouth.classList.remove('flat', 'smile', 'sad');
+        mouth.classList.add('smile');
+      });
 
-        if (!auth) {
-          throw new Error('Authentication service not available');
-        }
-
-        // Check if user is already signed in (fastest path)
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-          try {
-            loadingText.textContent = 'Using existing session...';
-            progressBar.style.width = '50%';
-
-            const idToken = await currentUser.getIdToken(false); // Use cached token
-            await verifyWithBackend(idToken, loadingText, progressBar, loadingEl);
-            return;
-          } catch (error) {
-            console.log('Existing session failed, proceeding with new sign-in:', error);
-            // IMPORTANT: Because we 'awaited' the backend request, the browser's 
-            // 1-second synchronous click window has expired! If we try to open a 
-            // popup now, the browser will block it as unprompted.
-            // We must sign them out and ask them to click again.
-            try { await auth.signOut(); } catch(e) {}
-            handleSignInError(new Error("Session refreshed. Please click 'Continue with Google' again."), loadingEl, loadingText);
-            return;
-          }
-        }
-        // Optimize provider setup for speed
-        const provider = new firebase.auth.GoogleAuthProvider();
-        provider.addScope('email');
-        provider.addScope('profile');
-        // Use optimized sign-in flow
-        provider.setCustomParameters({
-          prompt: 'select_account',
-          include_granted_scopes: 'true'
-        });
-
-        loadingText.textContent = 'Redirecting to Google...';
-        progressBar.style.width = '30%';
-
-        // MUST use signInWithRedirect on Vercel to bypass all browser tracker/popup blockers
-        await auth.signInWithRedirect(provider);
+      if (!auth) {
+        handleSignInError(new Error('Authentication service not available'), loadingEl, loadingText);
         return;
-
-      } catch (err) {
-        console.error('Google sign-in error:', err);
-        handleSignInError(err, loadingEl, loadingText);
       }
+
+      // Check if user is already signed in (fastest path)
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        loadingText.textContent = 'Using existing session...';
+        progressBar.style.width = '50%';
+        
+        currentUser.getIdToken(false)
+          .then(idToken => verifyWithBackend(idToken, loadingText, progressBar, loadingEl))
+          .catch(error => {
+            console.log('Existing session failed, proceeding with new sign-in:', error);
+            auth.signOut().catch(()=>{});
+            handleSignInError(new Error("Session refreshed. Please click 'Continue with Google' again."), loadingEl, loadingText);
+          });
+        return;
+      }
+
+      // If no current user, immediately open popup in the exact same synchronous tick!
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.addScope('email');
+      provider.addScope('profile');
+      provider.setCustomParameters({
+        prompt: 'select_account',
+        include_granted_scopes: 'true'
+      });
+
+      loadingText.textContent = 'Opening Google Sign-in...';
+      progressBar.style.width = '30%';
+
+      // This is now 100% synchronous with the user's click event!
+      auth.signInWithPopup(provider)
+        .then(result => {
+          loadingText.textContent = 'Authentication successful...';
+          progressBar.style.width = '60%';
+          return result.user.getIdToken(true);
+        })
+        .then(idToken => {
+          return verifyWithBackend(idToken, loadingText, progressBar, loadingEl);
+        })
+        .catch(err => {
+          console.error('Google sign-in error:', err);
+          handleSignInError(err, loadingEl, loadingText);
+        });
     }
 
 
