@@ -98,6 +98,30 @@ async def startup_event():
     import asyncio
     asyncio.create_task(keep_alive_task())
 
+@app.post("/rpc")
+async def rpc_proxy(request: Request):
+    """Securely proxy RPC requests from the frontend to the hidden local Anvil node"""
+    import requests
+    import asyncio
+    from fastapi import Response
+    
+    body = await request.body()
+    loop = asyncio.get_running_loop()
+    
+    def forward_request():
+        try:
+            return requests.post("http://127.0.0.1:8545", data=body, headers={"Content-Type": "application/json"})
+        except Exception as e:
+            logger.error(f"Failed to forward RPC request: {e}")
+            return None
+            
+    res = await loop.run_in_executor(None, forward_request)
+    
+    if res is None:
+        return Response(content='{"error": "Failed to connect to Anvil"}', status_code=502, media_type="application/json")
+        
+    return Response(content=res.content, status_code=res.status_code, media_type="application/json")
+
 async def keep_alive_task():
     """Background task to keep the server awake on free hosting tiers by pinging itself."""
     import asyncio
