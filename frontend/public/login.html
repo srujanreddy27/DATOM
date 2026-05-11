@@ -1234,8 +1234,40 @@
     async function initializeApp() {
       console.log('Initializing app...');
 
-      // Remove old redirect handling as we are back to popup auth
-      localStorage.removeItem('auth_redirect_state');
+      // 1. Check for Redirect Result (This catches returning users after Google sign in)
+      try {
+        const result = await auth.getRedirectResult();
+        if (result && result.user) {
+          console.log('Got redirect result from Google sign in');
+          const loadingEl = document.getElementById('loading');
+          const loadingText = document.getElementById('loadingText');
+          const progressBar = document.getElementById('progressBar');
+          
+          if (loadingEl && loadingText && progressBar) {
+            loadingEl.style.display = 'flex';
+            loadingText.textContent = 'Verifying with server...';
+            progressBar.style.width = '70%';
+          }
+          
+          const idToken = await result.user.getIdToken(true);
+          await verifyWithBackend(idToken, loadingText, progressBar, loadingEl);
+          return; // Stop here, verifyWithBackend handles redirect
+        }
+      } catch (err) {
+        console.error("Redirect auth error:", err);
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl) loadingEl.style.display = 'none';
+        
+        const errorMessage = document.getElementById('errorMessage');
+        if (errorMessage) {
+            errorMessage.textContent = 'Server took too long to respond. Please try again.';
+            errorMessage.classList.add('show');
+            setTimeout(() => errorMessage.classList.remove('show'), 4000);
+        }
+        
+        try { await auth.signOut(); } catch(e) {}
+        return; // Stop execution
+      }
 
       // 2. Check if user is already authenticated (Normal page load)
       auth.onAuthStateChanged(async (user) => {
@@ -1963,20 +1995,12 @@
           include_granted_scopes: 'true'
         });
 
-        loadingText.textContent = 'Opening Google Sign-in...';
+        loadingText.textContent = 'Redirecting to Google...';
         progressBar.style.width = '30%';
 
-        // Use signInWithPopup now that Vercel COOP headers allow it
-        const result = await auth.signInWithPopup(provider);
-        const user = result.user;
-
-        loadingText.textContent = 'Authentication successful...';
-        progressBar.style.width = '60%';
-
-        // Get Firebase ID token (force refresh for new sign-in)
-        const idToken = await user.getIdToken(true);
-
-        await verifyWithBackend(idToken, loadingText, progressBar, loadingEl);
+        // MUST use signInWithRedirect on Vercel to bypass all browser tracker/popup blockers
+        await auth.signInWithRedirect(provider);
+        return;
 
       } catch (err) {
         console.error('Google sign-in error:', err);
