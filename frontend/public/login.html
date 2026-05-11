@@ -411,8 +411,13 @@
     }
 
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
 
     .error-message {
@@ -888,28 +893,27 @@
     <div class="celebration-content" style="max-width: 450px;">
       <div class="celebration-icon" style="font-size: 50px;">🔐</div>
       <div class="celebration-title">Enter Reset Code</div>
-      <div class="celebration-message" id="otpMessage">We've sent a 6-digit code to your email. Enter it below to reset your password.</div>
-      
+      <div class="celebration-message" id="otpMessage">We've sent a 6-digit code to your email. Enter it below to reset
+        your password.</div>
+
       <div style="margin: 25px 0;">
-        <input type="text" id="otpInput" placeholder="Enter 6-digit code" maxlength="6" 
-               style="width: 100%; padding: 15px; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; 
+        <input type="text" id="otpInput" placeholder="Enter 6-digit code" maxlength="6" style="width: 100%; padding: 15px; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; 
                       font-size: 18px; text-align: center; letter-spacing: 4px; background: rgba(255,255,255,0.1); 
                       color: white; font-weight: bold; margin-bottom: 15px;">
-        <input type="password" id="newPasswordInput" placeholder="New Password" 
-               style="width: 100%; padding: 15px; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; 
+        <input type="password" id="newPasswordInput" placeholder="New Password" style="width: 100%; padding: 15px; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; 
                       font-size: 16px; background: rgba(255,255,255,0.1); color: white; margin-bottom: 15px;">
-        <input type="password" id="confirmPasswordInput" placeholder="Confirm New Password" 
-               style="width: 100%; padding: 15px; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; 
+        <input type="password" id="confirmPasswordInput" placeholder="Confirm New Password" style="width: 100%; padding: 15px; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; 
                       font-size: 16px; background: rgba(255,255,255,0.1); color: white;">
       </div>
-      
+
       <div style="display: flex; gap: 10px; margin-bottom: 15px;">
         <button class="celebration-btn" id="verifyOTPBtn" style="flex: 1;">Reset Password</button>
-        <button class="celebration-btn" id="resendOTPBtn" style="flex: 1; background: rgba(255,255,255,0.1);">Resend Code</button>
+        <button class="celebration-btn" id="resendOTPBtn" style="flex: 1; background: rgba(255,255,255,0.1);">Resend
+          Code</button>
       </div>
-      
+
       <button class="celebration-btn" id="cancelOTPBtn" style="background: rgba(255,255,255,0.1);">Cancel</button>
-      
+
       <div id="otpError" style="color: #ff6b6b; margin-top: 15px; font-size: 14px; display: none;"></div>
       <div id="otpTimer" style="color: rgba(255,255,255,0.7); margin-top: 10px; font-size: 12px;"></div>
     </div>
@@ -1174,7 +1178,7 @@
     function closeCelebrationNoRedirect() {
       closeCelebration(false);
     }
-    
+
     function showCelebrationAndRedirect(title, message, icon = "🎉") {
       showCelebration(title, message, icon);
       // Override the auto-close to redirect
@@ -1182,7 +1186,7 @@
         closeCelebration(true); // This will redirect
       }, 2000);
     }
-    
+
     function clearAllAuthData() {
       // Clear all possible auth tokens and data
       localStorage.removeItem('access_token');
@@ -1242,13 +1246,13 @@
           const loadingEl = document.getElementById('loading');
           const loadingText = document.getElementById('loadingText');
           const progressBar = document.getElementById('progressBar');
-          
+
           if (loadingEl && loadingText && progressBar) {
             loadingEl.style.display = 'flex';
             loadingText.textContent = 'Verifying with server...';
             progressBar.style.width = '70%';
           }
-          
+
           const idToken = await result.user.getIdToken(true);
           await verifyWithBackend(idToken, loadingText, progressBar, loadingEl);
           return; // Stop here, verifyWithBackend handles redirect
@@ -1257,15 +1261,15 @@
         console.error("Redirect auth error:", err);
         const loadingEl = document.getElementById('loading');
         if (loadingEl) loadingEl.style.display = 'none';
-        
+
         const errorMessage = document.getElementById('errorMessage');
         if (errorMessage) {
-            errorMessage.textContent = 'Server took too long to respond. Please try again.';
-            errorMessage.classList.add('show');
-            setTimeout(() => errorMessage.classList.remove('show'), 4000);
+          errorMessage.textContent = 'Server took too long to respond. Please try again.';
+          errorMessage.classList.add('show');
+          setTimeout(() => errorMessage.classList.remove('show'), 4000);
         }
-        
-        try { await auth.signOut(); } catch(e) {}
+
+        try { await auth.signOut(); } catch (e) { }
         return; // Stop execution
       }
 
@@ -1276,7 +1280,7 @@
         // Check if we have custom auth tokens first
         const customToken = localStorage.getItem('access_token');
         const authMethod = localStorage.getItem('auth_method');
-        
+
         if (customToken && authMethod === 'custom') {
           console.log('Custom auth detected, ignoring Firebase auth state');
           return; // Don't redirect if we have custom auth
@@ -1295,7 +1299,7 @@
             const loadingEl = document.getElementById('loading');
             const loadingText = document.getElementById('loadingText');
             const progressBar = document.getElementById('progressBar');
-            
+
             if (loadingEl && loadingText && progressBar) {
               loadingEl.style.display = 'flex';
               loadingText.textContent = 'Verifying session with server...';
@@ -1304,7 +1308,7 @@
 
             // Always verify with backend before redirecting to the main app
             await verifyWithBackend(idToken, loadingText, progressBar, loadingEl);
-            
+
           } catch (error) {
             console.error('Error getting token for existing user:', error);
             window.location.href = '/';
@@ -1343,7 +1347,7 @@
       if (!el) return;
       el.disabled = !!busy;
       el.style.opacity = busy ? '0.7' : '1';
-      
+
       if (busy) {
         // Add loading spinner
         const originalText = el.textContent;
@@ -1603,7 +1607,7 @@
 
         // Show OTP modal
         showOTPModal(email, data.otp); // data.otp will only be present in development mode
-        
+
       } catch (err) {
         errorMessage.textContent = err.message || 'Failed to send reset code';
         errorMessage.classList.add('show');
@@ -1621,17 +1625,17 @@
       errorMessage.textContent = '';
       const email = (emailInput.value || '').trim();
       const pass = passwordInput.value || '';
-      
+
       // Test environment detection and mock authentication
-      const isTestEnvironment = window.navigator.webdriver || 
-                               window.location.search.includes('test=true') ||
-                               window.location.search.includes('testsprite=true') ||
-                               document.documentElement.getAttribute('webdriver') === 'true';
-      
+      const isTestEnvironment = window.navigator.webdriver ||
+        window.location.search.includes('test=true') ||
+        window.location.search.includes('testsprite=true') ||
+        document.documentElement.getAttribute('webdriver') === 'true';
+
       if (isTestEnvironment && (email.includes('test') || email.includes('client') || email.includes('freelancer'))) {
         console.log('🧪 Test environment detected: using mock authentication');
         setBusy(document.getElementById('loginBtn'), true);
-        
+
         // Simulate successful login for test users
         setTimeout(() => {
           const mockUser = {
@@ -1642,7 +1646,7 @@
             user_type: email.includes('client') ? 'client' : 'freelancer',
             displayName: email.split('@')[0]
           };
-          
+
           // Store mock token and user data in all possible formats
           const mockToken = 'mock-token-' + Date.now();
           localStorage.setItem('firebase_token', mockToken);
@@ -1654,18 +1658,18 @@
           localStorage.setItem('user_id', mockUser.id);
           localStorage.setItem('user_email', mockUser.email);
           localStorage.setItem('user_type', mockUser.user_type);
-          
+
           console.log('✅ Mock authentication successful:', mockUser);
           showCelebration('Test Login Successful!', 'Redirecting...');
           setTimeout(() => {
             window.location.href = '/';
           }, 1000);
-          
+
           setBusy(document.getElementById('loginBtn'), false);
         }, 500);
         return;
       }
-      
+
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         errorMessage.textContent = 'Enter a valid email address';
         errorMessage.classList.add('show');
@@ -1682,7 +1686,7 @@
       try {
         // Try custom auth first (for password reset users)
         const backendUrl = window.APP_CONFIG?.BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
-        
+
         try {
           const response = await fetch(`${backendUrl}/api/auth/login`, {
             method: 'POST',
@@ -1697,12 +1701,12 @@
 
           if (response.ok) {
             const data = await response.json();
-            
+
             // Store tokens in multiple formats for compatibility
             localStorage.setItem('access_token', data.access_token);
             localStorage.setItem('firebase_token', data.access_token); // Main app might look for this
             localStorage.setItem('auth_token', data.access_token); // Alternative name
-            
+
             // Store user info for the main app
             if (data.user) {
               localStorage.setItem('user_data', JSON.stringify(data.user));
@@ -1711,7 +1715,7 @@
               localStorage.setItem('user_name', data.user.username || data.user.email.split('@')[0]);
               localStorage.setItem('user_type', data.user.user_type || 'freelancer');
             }
-            
+
             // Create a fake Firebase user object for compatibility
             const fakeFirebaseUser = {
               uid: data.user.id,
@@ -1720,12 +1724,12 @@
               emailVerified: true
             };
             localStorage.setItem('firebase_user', JSON.stringify(fakeFirebaseUser));
-            
+
             // Set authentication flags
             localStorage.setItem('is_authenticated', 'true');
             localStorage.setItem('auth_method', 'custom');
             localStorage.setItem('show_welcome_celebration', 'true');
-            
+
             // CRITICAL: Sign out from Firebase to prevent conflicts
             if (auth && auth.currentUser) {
               try {
@@ -1735,10 +1739,10 @@
                 console.log('Firebase signout error (ignored):', error);
               }
             }
-            
+
             console.log('Custom auth login successful:', data);
             console.log('Stored tokens and user data for main app');
-            
+
             // Redirect to main app (home page)
             window.location.href = '/';
             return;
@@ -1749,11 +1753,11 @@
           }
         } catch (customAuthError) {
           console.log('Custom auth failed:', customAuthError);
-          
+
           // If it's an authentication error, don't try Firebase fallback
-          if (customAuthError.message && 
-              (customAuthError.message.includes('Invalid email or password') || 
-               customAuthError.message.includes('401'))) {
+          if (customAuthError.message &&
+            (customAuthError.message.includes('Invalid email or password') ||
+              customAuthError.message.includes('401'))) {
             throw customAuthError;
           }
         }
@@ -1951,72 +1955,71 @@
         setBusy(document.getElementById('signupBtn'), false);
       }
     });
+        // Fast Google sign-in (Completely synchronous to bypass aggressive popup blockers)
+        function googleSignIn() {
+          const loadingEl = document.getElementById('loading');
+          const loadingText = document.getElementById('loadingText');
+          const progressBar = document.getElementById('progressBar');
 
-    // Fast Google sign-in (Completely synchronous to bypass aggressive popup blockers)
-    function googleSignIn() {
-      const loadingEl = document.getElementById('loading');
-      const loadingText = document.getElementById('loadingText');
-      const progressBar = document.getElementById('progressBar');
+          // Show enhanced loading immediately
+          loadingEl.style.display = 'flex';
+          loadingText.textContent = 'Initializing...';
+          progressBar.style.width = '10%';
 
-      // Show enhanced loading immediately
-      loadingEl.style.display = 'flex';
-      loadingText.textContent = 'Initializing...';
-      progressBar.style.width = '10%';
-
-      // Show loading state on faces
-      mouths.forEach(mouth => {
-        mouth.classList.remove('flat', 'smile', 'sad');
-        mouth.classList.add('smile');
-      });
-
-      if (!auth) {
-        handleSignInError(new Error('Authentication service not available'), loadingEl, loadingText);
-        return;
-      }
-
-      // Check if user is already signed in (fastest path)
-      const currentUser = auth.currentUser;
-      if (currentUser) {
-        loadingText.textContent = 'Using existing session...';
-        progressBar.style.width = '50%';
-        
-        currentUser.getIdToken(false)
-          .then(idToken => verifyWithBackend(idToken, loadingText, progressBar, loadingEl))
-          .catch(error => {
-            console.log('Existing session failed, proceeding with new sign-in:', error);
-            auth.signOut().catch(()=>{});
-            handleSignInError(new Error("Session refreshed. Please click 'Continue with Google' again."), loadingEl, loadingText);
+          // Show loading state on faces
+          mouths.forEach(mouth => {
+            mouth.classList.remove('flat', 'smile', 'sad');
+            mouth.classList.add('smile');
           });
-        return;
-      }
 
-      // If no current user, immediately open popup in the exact same synchronous tick!
-      const provider = new firebase.auth.GoogleAuthProvider();
-      provider.addScope('email');
-      provider.addScope('profile');
-      provider.setCustomParameters({
-        prompt: 'select_account',
-        include_granted_scopes: 'true'
-      });
+          if (!auth) {
+            handleSignInError(new Error('Authentication service not available'), loadingEl, loadingText);
+            return;
+          }
 
-      loadingText.textContent = 'Opening Google Sign-in...';
-      progressBar.style.width = '30%';
+          // Check if user is already signed in (fastest path)
+          const currentUser = auth.currentUser;
+          if (currentUser) {
+            loadingText.textContent = 'Using existing session...';
+            progressBar.style.width = '50%';
+            
+            currentUser.getIdToken(false)
+              .then(idToken => verifyWithBackend(idToken, loadingText, progressBar, loadingEl))
+              .catch(error => {
+                console.log('Existing session failed, proceeding with new sign-in:', error);
+                auth.signOut().catch(()=>{});
+                handleSignInError(new Error("Session refreshed. Please click 'Continue with Google' again."), loadingEl, loadingText);
+              });
+            return;
+          }
 
-      // This is now 100% synchronous with the user's click event!
-      auth.signInWithPopup(provider)
-        .then(result => {
-          loadingText.textContent = 'Authentication successful...';
-          progressBar.style.width = '60%';
-          return result.user.getIdToken(true);
-        })
-        .then(idToken => {
-          return verifyWithBackend(idToken, loadingText, progressBar, loadingEl);
-        })
-        .catch(err => {
-          console.error('Google sign-in error:', err);
-          handleSignInError(err, loadingEl, loadingText);
-        });
-    }
+          // If no current user, immediately open popup in the exact same synchronous tick!
+          const provider = new firebase.auth.GoogleAuthProvider();
+          provider.addScope('email');
+          provider.addScope('profile');
+          provider.setCustomParameters({
+            prompt: 'select_account',
+            include_granted_scopes: 'true'
+          });
+
+          loadingText.textContent = 'Opening Google Sign-in...';
+          progressBar.style.width = '30%';
+
+          // This is now 100% synchronous with the user's click event!
+          auth.signInWithPopup(provider)
+            .then(result => {
+              loadingText.textContent = 'Authentication successful...';
+              progressBar.style.width = '60%';
+              return result.user.getIdToken(true);
+            })
+            .then(idToken => {
+              return verifyWithBackend(idToken, loadingText, progressBar, loadingEl);
+            })
+            .catch(err => {
+              console.error('Google sign-in error:', err);
+              handleSignInError(err, loadingEl, loadingText);
+            });
+        }
 
 
 
@@ -2178,26 +2181,26 @@
       const messageEl = document.getElementById('otpMessage');
       const timerEl = document.getElementById('otpTimer');
       const errorEl = document.getElementById('otpError');
-      
+
       // Clear previous state
       document.getElementById('otpInput').value = '';
       document.getElementById('newPasswordInput').value = '';
       document.getElementById('confirmPasswordInput').value = '';
       errorEl.style.display = 'none';
-      
+
       // Set message
       let message = `We've sent a 6-digit code to ${email}. Enter it below to reset your password.`;
       if (devOTP) {
         message += ` (Development mode: ${devOTP})`;
       }
       messageEl.textContent = message;
-      
+
       // Show modal
       modal.classList.add('show');
-      
+
       // Start timer
       startOTPTimer();
-      
+
       // Focus on OTP input
       setTimeout(() => {
         document.getElementById('otpInput').focus();
@@ -2216,17 +2219,17 @@
     function startOTPTimer() {
       otpTimeLeft = 600; // Reset to 10 minutes
       const timerEl = document.getElementById('otpTimer');
-      
+
       if (otpTimer) {
         clearInterval(otpTimer);
       }
-      
+
       otpTimer = setInterval(() => {
         otpTimeLeft--;
         const minutes = Math.floor(otpTimeLeft / 60);
         const seconds = otpTimeLeft % 60;
         timerEl.textContent = `Code expires in ${minutes}:${seconds.toString().padStart(2, '0')}`;
-        
+
         if (otpTimeLeft <= 0) {
           clearInterval(otpTimer);
           timerEl.textContent = 'Code expired. Please request a new one.';
@@ -2249,28 +2252,28 @@
       const otp = document.getElementById('otpInput').value.trim();
       const newPassword = document.getElementById('newPasswordInput').value;
       const confirmPassword = document.getElementById('confirmPasswordInput').value;
-      
+
       // Validation
       if (!otp || otp.length !== 6) {
         showOTPError('Please enter a valid 6-digit code');
         return;
       }
-      
+
       if (!newPassword || newPassword.length < 6) {
         showOTPError('Password must be at least 6 characters long');
         return;
       }
-      
+
       if (newPassword !== confirmPassword) {
         showOTPError('Passwords do not match');
         return;
       }
-      
+
       try {
         const btn = document.getElementById('verifyOTPBtn');
         btn.textContent = 'Verifying...';
         btn.disabled = true;
-        
+
         const backendUrl = window.APP_CONFIG?.BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
         const response = await fetch(`${backendUrl}/api/auth/verify-otp`, {
           method: 'POST',
@@ -2283,26 +2286,26 @@
             new_password: newPassword
           })
         });
-        
+
         // Check if the response is successful (status 200-299)
         if (response.ok) {
           // Success - password was reset
           hideOTPModal();
-          
+
           // Show success celebration modal
           showCelebration(
-            'Password Reset Successful!', 
-            'Your password has been changed successfully. You can now log in with your new password.', 
+            'Password Reset Successful!',
+            'Your password has been changed successfully. You can now log in with your new password.',
             '✅'
           );
-          
+
           // Auto-close celebration and clear form after 3 seconds (no redirect for password reset)
           setTimeout(() => {
             closeCelebrationNoRedirect();
             // Clear the email input and reset form
             document.getElementById('email').value = '';
             document.getElementById('password').value = '';
-            
+
             // CRITICAL: Sign out from Firebase to prevent conflicts
             if (auth && auth.currentUser) {
               auth.signOut().then(() => {
@@ -2311,19 +2314,19 @@
                 console.log('Firebase signout error (ignored):', error);
               });
             }
-            
+
             // Clear any Firebase tokens
             localStorage.removeItem('firebase_token');
             localStorage.removeItem('firebase_user');
           }, 3000);
-          
+
           return; // Exit successfully
         }
-        
+
         // If we get here, there was an error
         const data = await response.json();
         throw new Error(data.detail || 'Failed to reset password');
-        
+
       } catch (err) {
         showOTPError(err.message || 'Failed to reset password');
       } finally {
@@ -2338,7 +2341,7 @@
         const btn = document.getElementById('resendOTPBtn');
         btn.textContent = 'Sending...';
         btn.disabled = true;
-        
+
         const backendUrl = window.APP_CONFIG?.BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
         const response = await fetch(`${backendUrl}/api/auth/resend-otp`, {
           method: 'POST',
@@ -2347,13 +2350,13 @@
           },
           body: JSON.stringify({ email: otpEmail })
         });
-        
+
         const data = await response.json();
-        
+
         if (!response.ok) {
           throw new Error(data.detail || 'Failed to resend code');
         }
-        
+
         // Update message if dev OTP is provided
         const messageEl = document.getElementById('otpMessage');
         let message = `We've sent a new 6-digit code to ${otpEmail}. Enter it below to reset your password.`;
@@ -2361,14 +2364,14 @@
           message += ` (Development mode: ${data.otp})`;
         }
         messageEl.textContent = message;
-        
+
         // Restart timer
         startOTPTimer();
         document.getElementById('verifyOTPBtn').disabled = false;
-        
+
         // Clear OTP input
         document.getElementById('otpInput').value = '';
-        
+
       } catch (err) {
         showOTPError(err.message || 'Failed to resend code');
       } finally {
