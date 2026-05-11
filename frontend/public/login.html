@@ -1258,6 +1258,21 @@
         }
       } catch (err) {
         console.error("Redirect auth error:", err);
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl) loadingEl.style.display = 'none';
+        
+        const errorMessage = document.getElementById('errorMessage');
+        if (errorMessage) {
+            errorMessage.textContent = 'Server took too long to respond. Please try again.';
+            errorMessage.classList.add('show');
+            setTimeout(() => errorMessage.classList.remove('show'), 4000);
+        }
+        
+        // IMPORTANT: We must log them out of Firebase so they can try again,
+        // otherwise Firebase thinks they are logged in but our backend doesn't know them!
+        try { await auth.signOut(); } catch(e) {}
+        
+        return; // Stop execution so they aren't redirected to the home page half-logged in
       }
 
       // 2. Check if user is already authenticated (Normal page load)
@@ -2011,9 +2026,9 @@
         const backendUrl = window.APP_CONFIG?.BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
         console.log('Backend URL:', backendUrl);
 
-        // Use faster fetch with optimized timeout
+        // Use a generous timeout (15 seconds) to accommodate free-tier server cold starts
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000); // Reduced to 3 seconds with backend caching
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
 
         console.log('Sending request to backend...');
         const response = await fetch(`${backendUrl}/api/auth/firebase/verify`, {
