@@ -425,6 +425,7 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
         onClose={() => setShowSubmissionModal(false)}
         task={task}
         onSubmissionSubmitted={handleSubmissionSubmitted}
+        currentUser={currentUser}
       />
 
       {/* Task Submissions Modal */}

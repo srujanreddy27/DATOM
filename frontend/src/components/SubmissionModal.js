@@ -9,7 +9,7 @@ import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
-const SubmissionModal = ({ isOpen, onClose, task, onSubmissionSubmitted }) => {
+const SubmissionModal = ({ isOpen, onClose, task, onSubmissionSubmitted, currentUser }) => {
   const [formData, setFormData] = useState({
     description: '',
     files: []
@@ -57,11 +57,13 @@ const SubmissionModal = ({ isOpen, onClose, task, onSubmissionSubmitted }) => {
       return false;
     }
 
-    // Validate file sizes (50MB max per file)
-    const maxSize = 50 * 1024 * 1024; // 50MB
+    // Validate file sizes — premium users get 1 GB, free users get 50 MB
+    const isPremium = currentUser && currentUser.subscription_plan === 'premium';
+    const maxSize = isPremium ? 1024 * 1024 * 1024 : 50 * 1024 * 1024; // 1GB or 50MB
+    const maxSizeLabel = isPremium ? '1GB' : '50MB';
     for (const file of selectedFiles) {
       if (file.size > maxSize) {
-        setError(`File "${file.name}" is too large. Maximum size is 50MB.`);
+        setError(`File "${file.name}" is too large. Maximum size is ${maxSizeLabel}${!isPremium ? ' (upgrade to Premium for 1GB)' : ''}.`);
         return false;
       }
     }
@@ -261,7 +263,10 @@ const SubmissionModal = ({ isOpen, onClose, task, onSubmissionSubmitted }) => {
             </div>
 
             <p className="text-xs text-gray-400">
-              Supported formats: PDF, DOC, DOCX, TXT, ZIP, RAR, JPG, PNG, GIF, MP4, MOV, AVI (Max 50MB per file)
+              Supported formats: PDF, DOC, DOCX, TXT, ZIP, RAR, JPG, PNG, GIF, MP4, MOV, AVI
+              {currentUser && currentUser.subscription_plan === 'premium'
+                ? ' · Max 1GB per file (Premium)'
+                : ' · Max 50MB per file (upgrade to Premium for 1GB)'}
             </p>
           </div>
 

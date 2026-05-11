@@ -124,6 +124,10 @@ class User(BaseModel):
     total_earnings: float = 0.0
     reputation_score: int = 100
     firebase_uid: Optional[str] = None  # Firebase user ID
+    subscription_plan: str = "free"   # "free" or "premium"
+    premium_paid: bool = False
+    premium_since: Optional[str] = None
+    domains: List[str] = []            # Skills/domains the user works in
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserCreate(BaseModel):
@@ -239,9 +243,10 @@ class Bid(BaseModel):
     role_name: str
     proposed_amount: float
     message: str
-    status: str = "pending"  # pending, accepted, rejected, countered, withdrawn
+    status: str = "pending"  # pending, awaiting_freelancer, accepted, rejected, countered, withdrawn, paid
     counter_amount: Optional[float] = None
     counter_message: Optional[str] = None
+    final_amount: Optional[float] = None  # Amount locked after 2-way handshake
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = None
 
@@ -257,15 +262,22 @@ class CounterOffer(BaseModel):
 
 class ChatMessage(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    bid_id: str
+    bid_id: Optional[str] = None
+    project_id: Optional[str] = None   # set for group chat messages
     sender_id: str
     sender_name: str
-    message: str
+    receiver_id: Optional[str] = None
+    content: str = ""
+    message: str = ""  # legacy for bids
     is_client: bool = False
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ChatMessageCreate(BaseModel):
     message: str
+
+class DirectMessageCreate(BaseModel):
+    receiver_username: str
+    content: str
 
 
 class SignupRequest(BaseModel):
@@ -514,8 +526,7 @@ async def get_current_user(authorization: Optional[str] = Header(default=None)) 
             firebase_uid=firebase_user["uid"]
         )
         await save_user(user_obj)
-        user = user_obj
-
+        user = user_obj.model_dump() if hasattr(user_obj, 'model_dump') else user_obj.dict()
     
     return user
 
@@ -542,8 +553,15 @@ def is_past_deadline(deadline_str: str) -> bool:
     except Exception:
         return False
 
-async def save_uploaded_file(file: UploadFile, task_id: str, freelancer_id: str) -> str:
+PREMIUM_FILE_SIZE = 1024 * 1024 * 1024  # 1GB for premium users
+
+async def save_uploaded_file(file: UploadFile, task_id: str, freelancer_id: str, uploading_user: Optional[dict] = None) -> str:
     """Save uploaded file and return the file path with enhanced security validation"""
+    # Determine file size limit based on subscription plan
+    is_premium = uploading_user and uploading_user.get("subscription_plan") == "premium"
+    effective_max_size = PREMIUM_FILE_SIZE if is_premium else MAX_FILE_SIZE
+    size_label = "1GB" if is_premium else "50MB"
+
     # Validate file extension
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in ALLOWED_EXTENSIONS:
@@ -578,8 +596,11 @@ async def save_uploaded_file(file: UploadFile, task_id: str, freelancer_id: str)
     # Save file
     try:
         content = await file.read()
-        if len(content) > MAX_FILE_SIZE:
-            raise HTTPException(status_code=400, detail="File too large (max 50MB)")
+        if len(content) > effective_max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large (max {size_label}). {'Upgrade to Premium for 1GB uploads.' if not is_premium else ''}"
+            )
         
         # Validate file is not empty
         if len(content) == 0:
@@ -951,6 +972,8 @@ async def create_submission(
     current_user: User = Depends(get_current_user)
 ):
     """Submit completed work for a task with file uploads"""
+    # Pass user dict for file-size enforcement based on subscription plan
+    _user_dict = current_user.dict()
     # Only freelancers can submit work
     if current_user.user_type != "freelancer":
         raise HTTPException(status_code=403, detail="Only freelancers can submit work")
@@ -1033,7 +1056,7 @@ async def create_submission(
     
     for file in files:
         if file.filename:  # Skip empty files
-            file_path = await save_uploaded_file(file, task_id, current_user.id)
+            file_path = await save_uploaded_file(file, task_id, current_user.id, uploading_user=current_user.dict())
             file_size = file.size or 0
             
             # Generate REAL cryptographic ZKP for the file
@@ -2993,6 +3016,220 @@ async def pay_for_project(
     }
 
 
+# ═══════════════════════════════════════════════════════════════
+# BID PAYMENT CLAIM — Freelancer claims their agreed payment
+# ═══════════════════════════════════════════════════════════════
+
+@api_router.post("/bids/{bid_id}/claim-payment")
+async def claim_bid_payment(
+    bid_id: str,
+    wallet_address: str = Form(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Freelancer claims their payment for a fully accepted bid.
+    The freelancer supplies their ETH wallet address and the agreed amount
+    is transferred from escrow directly to their wallet.
+    Mirrors the tasks payment claim flow exactly.
+    """
+    if current_user.user_type != "freelancer":
+        raise HTTPException(status_code=403, detail="Only freelancers can claim payments")
+
+    # Load bid
+    bid_data = await firebase_db.get_bid_by_id(bid_id)
+    if not bid_data:
+        raise HTTPException(status_code=404, detail="Bid not found")
+
+    # Must be the bid owner
+    if bid_data.get("freelancer_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only claim payment for your own bids")
+
+    # Bid must be fully accepted (both sides confirmed)
+    if bid_data.get("status") != "accepted":
+        raise HTTPException(
+            status_code=400,
+            detail="Payment can only be claimed once the bid is fully accepted by both parties"
+        )
+
+    # Guard against double-claim
+    if bid_data.get("status") == "paid":
+        raise HTTPException(status_code=400, detail="Payment has already been claimed for this bid")
+
+    # Validate wallet address format
+    if not wallet_address.startswith("0x") or len(wallet_address) != 42:
+        raise HTTPException(status_code=400, detail="Invalid wallet address format. Must be 0x followed by 40 hex characters.")
+
+    # Determine amount: final_amount (agreed) > counter_amount > proposed_amount
+    payment_amount = (
+        bid_data.get("final_amount")
+        or bid_data.get("agreed_amount")
+        or bid_data.get("counter_amount")
+        or bid_data.get("proposed_amount", 0)
+    )
+    if not payment_amount or payment_amount <= 0:
+        raise HTTPException(status_code=400, detail="Could not determine a valid payment amount for this bid")
+
+    # Load project for context
+    project_data = await firebase_db.get_project_by_id(bid_data.get("project_id", ""))
+
+    # Create payment claim record
+    claim_data = {
+        "id": str(uuid.uuid4()),
+        "submission_id": bid_id,          # reuse field for reference
+        "task_id": bid_data.get("project_id", ""),
+        "freelancer_id": current_user.id,
+        "freelancer_wallet": wallet_address,
+        "amount": payment_amount,
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc),
+    }
+    await firebase_db.save_payment_claim(claim_data)
+
+    # Execute blockchain transfer
+    logger.info(f"Initiating bid payment transfer: {payment_amount} ETH → {wallet_address} (bid {bid_id})")
+    transfer_result = await transfer_from_escrow(wallet_address, payment_amount)
+
+    if not transfer_result.get("success"):
+        await firebase_db.update_payment_claim(claim_data["id"], {
+            "status": "failed",
+            "error": transfer_result.get("error", "Unknown error")
+        })
+        raise HTTPException(
+            status_code=500,
+            detail=f"Blockchain transfer failed: {transfer_result.get('error')}"
+        )
+
+    # Mark bid as paid
+    await firebase_db.update_bid(bid_id, {
+        "status": "paid",
+        "tx_hash": transfer_result["transaction_hash"],
+        "paid_at": datetime.now(timezone.utc).isoformat(),
+        "paid_to_wallet": wallet_address,
+    })
+
+    # Update payment claim to completed
+    await firebase_db.update_payment_claim(claim_data["id"], {
+        "status": "completed",
+        "transaction_hash": transfer_result["transaction_hash"],
+        "completed_at": datetime.now(timezone.utc),
+    })
+
+    # Update project status if all bids are now paid
+    if project_data:
+        all_bids = await firebase_db.get_bids_by_project_id(project_data["id"])
+        accepted_or_paid = [b for b in all_bids if b.get("status") in ("accepted", "paid")]
+        all_paid = all(b.get("status") == "paid" for b in accepted_or_paid) if accepted_or_paid else False
+        if all_paid:
+            await firebase_db.update_project(project_data["id"], {
+                "status": "completed",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            })
+
+    # Update freelancer earnings
+    try:
+        await firebase_db.update_user(current_user.id, {
+            "total_earnings": (current_user.total_earnings or 0) + payment_amount,
+            "completed_tasks": (current_user.completed_tasks or 0) + 1,
+        })
+    except Exception as e:
+        logger.warning(f"Failed to update freelancer earnings: {e}")
+
+    logger.info(f"Bid payment completed: {transfer_result['transaction_hash']}")
+
+    return {
+        "message": "Payment transferred successfully to your wallet",
+        "claim_id": claim_data["id"],
+        "amount": payment_amount,
+        "wallet_address": wallet_address,
+        "transaction_hash": transfer_result["transaction_hash"],
+        "block_number": transfer_result.get("block_number"),
+        "gas_used": transfer_result.get("gas_used"),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# GROUP CHAT — for synchronous collaborative projects
+# ═══════════════════════════════════════════════════════════════
+
+class GroupChatMessageCreate(BaseModel):
+    message: str
+
+
+@api_router.post("/projects/{project_id}/group-chat")
+async def send_group_chat_message(
+    project_id: str,
+    msg: GroupChatMessageCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Send a message to the project group chat.
+    Allowed for: the project owner (client) and all freelancers with an accepted bid on this project.
+    Only available for sync collaboration_type projects.
+    """
+    project_data = await firebase_db.get_project_by_id(project_id)
+    if not project_data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project_data.get("collaboration_type") != "sync":
+        raise HTTPException(status_code=400, detail="Group chat is only available for synchronous projects")
+
+    # Access check — owner OR an accepted freelancer
+    is_owner = project_data.get("client_id") == current_user.id
+    if not is_owner:
+        all_bids = await firebase_db.get_bids_by_project_id(project_id)
+        is_member = any(
+            b.get("freelancer_id") == current_user.id and b.get("status") in ("accepted", "paid")
+            for b in all_bids
+        )
+        if not is_member:
+            raise HTTPException(status_code=403, detail="Only project members can send group messages")
+
+    msg_obj = ChatMessage(
+        bid_id=None,
+        sender_id=current_user.id,
+        sender_name=current_user.username,
+        message=msg.message,
+        is_client=is_owner,
+    )
+    # Store with project_id tag via content field
+    data = msg_obj.dict()
+    data["project_id"] = project_id  # Tag for group retrieval
+    await firebase_db.save_chat_message(data)
+    return msg_obj
+
+
+@api_router.get("/projects/{project_id}/group-chat")
+async def get_group_chat_messages(project_id: str, current_user: User = Depends(get_current_user)):
+    """Get all group chat messages for a synchronous project."""
+    project_data = await firebase_db.get_project_by_id(project_id)
+    if not project_data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project_data.get("collaboration_type") != "sync":
+        raise HTTPException(status_code=400, detail="Group chat is only available for synchronous projects")
+
+    is_owner = project_data.get("client_id") == current_user.id
+    if not is_owner:
+        all_bids = await firebase_db.get_bids_by_project_id(project_id)
+        is_member = any(
+            b.get("freelancer_id") == current_user.id and b.get("status") in ("accepted", "paid")
+            for b in all_bids
+        )
+        if not is_member:
+            raise HTTPException(status_code=403, detail="Only project members can read group chat")
+
+    messages = await firebase_db.get_messages_by_project_id(project_id)
+
+    # Normalise timestamps to ISO strings for JSON serialisation
+    result = []
+    for m in messages:
+        try:
+            ts = m.get("timestamp")
+            if hasattr(ts, "isoformat"):
+                m = {**m, "timestamp": ts.isoformat()}
+            result.append(m)
+        except Exception:
+            pass
+    return result
+
+
 # BID ROUTES
 # ═══════════════════════════════════════════════════════════════
 
@@ -3008,6 +3245,10 @@ async def place_bid(bid_data: BidCreate, current_user: User = Depends(get_curren
         raise HTTPException(status_code=404, detail="Project not found")
     if project_data.get("status") != "open":
         raise HTTPException(status_code=400, detail="Project is no longer accepting bids")
+
+    # ── Self-bid prevention: client of this project cannot bid on it ──
+    if project_data.get("client_id") == current_user.id:
+        raise HTTPException(status_code=403, detail="You cannot bid on your own project")
 
     # Validate role exists in project
     roles = project_data.get("roles", [])
@@ -3061,12 +3302,31 @@ async def get_my_bids(current_user: User = Depends(get_current_user)):
 
 @api_router.get("/projects/{project_id}/bids", response_model=List[Bid])
 async def get_project_bids(project_id: str, current_user: User = Depends(get_current_user)):
-    """Get all bids for a project (project owner only)"""
+    """Get all bids for a project.
+    - Project owner (client) can always see all bids.
+    - Premium users can also see all bids for any project (market intelligence feature).
+    """
     project_data = await firebase_db.get_project_by_id(project_id)
     if not project_data:
         raise HTTPException(status_code=404, detail="Project not found")
-    if project_data.get("client_id") != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the project owner can view all bids")
+
+    # Support both Pydantic User object and dict (new-user edge case)
+    current_user_id = current_user.id if hasattr(current_user, 'id') else current_user.get('id')
+    current_user_plan = (
+        current_user.subscription_plan
+        if hasattr(current_user, 'subscription_plan')
+        else current_user.get('subscription_plan', 'free')
+    )
+
+    is_owner = project_data.get("client_id") == current_user_id
+    is_premium = current_user_plan == "premium"
+
+    if not is_owner and not is_premium:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the project owner or Premium members can view all bids"
+        )
+
     bids = await firebase_db.get_bids_by_project_id(project_id)
     result = []
     for b in bids:
@@ -3094,7 +3354,9 @@ async def get_bid(bid_id: str, current_user: User = Depends(get_current_user)):
 
 @api_router.put("/bids/{bid_id}/accept")
 async def accept_bid(bid_id: str, current_user: User = Depends(get_current_user)):
-    """Client accepts a bid — marks the role as filled"""
+    """Client approves a bid — moves it to 'awaiting_freelancer' for the 2-way handshake.
+    The role is only filled once the freelancer also confirms via /bids/{id}/confirm.
+    """
     bid_data = await firebase_db.get_bid_by_id(bid_id)
     if not bid_data:
         raise HTTPException(status_code=404, detail="Bid not found")
@@ -3104,34 +3366,81 @@ async def accept_bid(bid_id: str, current_user: User = Depends(get_current_user)
         raise HTTPException(status_code=404, detail="Project not found")
     if project_data.get("client_id") != current_user.id:
         raise HTTPException(status_code=403, detail="Only the project owner can accept bids")
-    if bid_data.get("status") != "pending" and bid_data.get("status") != "countered":
+    if bid_data.get("status") not in ("pending", "countered"):
         raise HTTPException(status_code=400, detail="Bid is not in a pending/countered state")
 
-    # Mark bid as accepted
+    # Step 1 of 2-way handshake: mark as awaiting freelancer confirmation
+    final_amount = bid_data.get("counter_amount") or bid_data.get("proposed_amount")
+    await firebase_db.update_bid(bid_id, {
+        "status": "awaiting_freelancer",
+        "final_amount": final_amount,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    # Post a system message so the freelancer sees the offer in their chat
+    msg_obj = ChatMessage(
+        bid_id=bid_id,
+        sender_id=current_user.id,
+        sender_name=current_user.username,
+        message=f"✅ Client has approved this bid at Ξ{final_amount}. Please confirm to lock in the deal.",
+        is_client=True,
+    )
+    await firebase_db.save_chat_message(msg_obj.dict())
+
+    return {"message": "Bid approved — waiting for freelancer confirmation", "bid_id": bid_id, "final_amount": final_amount}
+
+
+@api_router.put("/bids/{bid_id}/confirm")
+async def freelancer_confirm_bid(bid_id: str, current_user: User = Depends(get_current_user)):
+    """Step 2 of 2-way handshake: freelancer confirms the client's accepted offer.
+    This finalises the deal and marks the role as filled.
+    """
+    bid_data = await firebase_db.get_bid_by_id(bid_id)
+    if not bid_data:
+        raise HTTPException(status_code=404, detail="Bid not found")
+    if bid_data.get("freelancer_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the bid owner can confirm it")
+    if bid_data.get("status") != "awaiting_freelancer":
+        raise HTTPException(status_code=400, detail="This bid is not awaiting your confirmation")
+
+    # Mark bid as fully accepted
     await firebase_db.update_bid(bid_id, {
         "status": "accepted",
+        "confirmed_by_freelancer_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat()
     })
 
     # Mark role as filled in project
-    roles = project_data.get("roles", [])
+    project_data = await firebase_db.get_project_by_id(bid_data.get("project_id", ""))
+    roles = project_data.get("roles", []) if project_data else []
     role_name = bid_data.get("role_name")
     updated_roles = []
     for r in roles:
         if r.get("role_name") == role_name and r.get("status") == "open":
             r["status"] = "filled"
-            r["filled_by_freelancer_id"] = bid_data.get("freelancer_id")
-            r["filled_by_name"] = bid_data.get("freelancer_name")
+            r["filled_by_freelancer_id"] = current_user.id
+            r["filled_by_name"] = current_user.username
+            r["agreed_amount"] = bid_data.get("final_amount") or bid_data.get("proposed_amount")
         updated_roles.append(r)
 
-    # Check if all roles are filled → update project status
     all_filled = all(r.get("status") == "filled" for r in updated_roles)
-    await firebase_db.update_project(bid_data.get("project_id"), {
-        "roles": updated_roles,
-        "status": "in_progress" if all_filled else project_data.get("status", "open")
-    })
+    if project_data:
+        await firebase_db.update_project(bid_data.get("project_id"), {
+            "roles": updated_roles,
+            "status": "in_progress" if all_filled else project_data.get("status", "open")
+        })
 
-    return {"message": "Bid accepted successfully", "bid_id": bid_id}
+    # Post confirmation message
+    msg_obj = ChatMessage(
+        bid_id=bid_id,
+        sender_id=current_user.id,
+        sender_name=current_user.username,
+        message=f"🤝 Deal confirmed! {current_user.username} has accepted the offer. Work begins now.",
+        is_client=False,
+    )
+    await firebase_db.save_chat_message(msg_obj.dict())
+
+    return {"message": "Bid confirmed — role filled", "bid_id": bid_id}
 
 
 @api_router.put("/bids/{bid_id}/reject")
@@ -3204,6 +3513,35 @@ async def withdraw_bid(bid_id: str, current_user: User = Depends(get_current_use
     return {"message": "Bid withdrawn successfully"}
 
 
+@api_router.put("/bids/{bid_id}/decline")
+async def freelancer_decline_bid(bid_id: str, current_user: User = Depends(get_current_user)):
+    """Freelancer declines the client's accepted offer (2-way handshake rejection)."""
+    bid_data = await firebase_db.get_bid_by_id(bid_id)
+    if not bid_data:
+        raise HTTPException(status_code=404, detail="Bid not found")
+    if bid_data.get("freelancer_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the bid owner can decline it")
+    if bid_data.get("status") != "awaiting_freelancer":
+        raise HTTPException(status_code=400, detail="Nothing to decline — bid is not in awaiting state")
+
+    await firebase_db.update_bid(bid_id, {
+        "status": "pending",  # Return to negotiation
+        "final_amount": None,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    msg_obj = ChatMessage(
+        bid_id=bid_id,
+        sender_id=current_user.id,
+        sender_name=current_user.username,
+        message=f"↩️ {current_user.username} declined the offer and returned the bid to negotiation.",
+        is_client=False,
+    )
+    await firebase_db.save_chat_message(msg_obj.dict())
+
+    return {"message": "Offer declined — bid returned to pending negotiation"}
+
+
 # ═══════════════════════════════════════════════════════════════
 # CHAT MESSAGE ROUTES
 # ═══════════════════════════════════════════════════════════════
@@ -3258,6 +3596,300 @@ async def get_chat_messages(bid_id: str, current_user: User = Depends(get_curren
         except Exception:
             pass
     return result
+
+
+# ═══════════════════════════════════════════════════════════════
+# DIRECT MESSAGING (USER-TO-USER)
+# ═══════════════════════════════════════════════════════════════
+
+@api_router.post("/chat/messages", response_model=ChatMessage)
+async def send_direct_message(
+    msg: DirectMessageCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Send a direct message to another user"""
+    # Verify receiver exists
+    all_users = await firebase_db.get_all_users()
+    receiver = next((u for u in all_users if u.get("username", "").lower() == msg.receiver_username.lower()), None)
+    if not receiver:
+        raise HTTPException(status_code=404, detail="Receiver not found")
+
+    msg_obj = ChatMessage(
+        sender_id=current_user.id,
+        sender_name=current_user.username,
+        receiver_id=receiver.get("id"),
+        content=msg.content,
+        is_client=(current_user.user_type == "client")
+    )
+    await firebase_db.save_chat_message(msg_obj.dict())
+    return msg_obj
+
+
+@api_router.get("/chat/messages/{username}", response_model=List[ChatMessage])
+async def get_direct_messages(username: str, current_user: User = Depends(get_current_user)):
+    """Get chat history with a specific user"""
+    all_users = await firebase_db.get_all_users()
+    target_user = next((u for u in all_users if u.get("username", "").lower() == username.lower()), None)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    messages = await firebase_db.get_messages_between_users(current_user.id, target_user.get("id"))
+    result = []
+    for m in messages:
+        try:
+            result.append(ChatMessage(**m))
+        except Exception:
+            pass
+    return result
+
+
+@api_router.get("/chat/inbox")
+async def get_user_inbox(current_user: User = Depends(get_current_user)):
+    """Get unique chat conversations (inbox view)"""
+    inbox = await firebase_db.get_user_inbox(current_user.id)
+    # Enhance with usernames and avatars
+    all_users = await firebase_db.get_all_users()
+    user_map = {u.get("id"): u for u in all_users}
+    
+    enriched_inbox = []
+    for chat in inbox:
+        contact_id = chat["contact_id"]
+        contact = user_map.get(contact_id)
+        if not contact:
+            continue
+        enriched_inbox.append({
+            "contact_id": contact_id,
+            "contact_username": contact.get("username", "Unknown"),
+            "contact_type": contact.get("user_type", "freelancer"),
+            "is_premium": contact.get("subscription_plan") == "premium",
+            "last_message": chat["last_message"],
+            "last_timestamp": chat["last_timestamp"],
+            "unread": False # Mock unread feature constraint
+        })
+    return enriched_inbox
+
+
+
+
+# ═══════════════════════════════════════════════════════════════
+# COMMERCIAL / PREMIUM ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+PREMIUM_PRICE_ETH = 0.0001  # Premium subscription price in ETH
+PREMIUM_ESCROW_ADDRESS = ESCROW_ADDRESS  # Use same escrow for simplicity
+
+class DomainsUpdateRequest(BaseModel):
+    domains: List[str]
+
+class SubscriptionUpgradeRequest(BaseModel):
+    tx_hash: Optional[str] = None      # MetaMask transaction hash (real payment)
+    test_mode: bool = False             # Test/demo mode — skip on-chain verification
+
+@api_router.put("/auth/me/domains")
+async def update_my_domains(request: DomainsUpdateRequest, current_user: User = Depends(get_current_user)):
+    """Update the domains/skills for the current user"""
+    # Fix: current_user from get_current_user is a dictionary, not an object
+    user_id = current_user.get("id") if isinstance(current_user, dict) else current_user.id
+    success = await firebase_db.update_user(user_id, {"domains": request.domains})
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update domains")
+    return {"message": "Domains updated successfully", "domains": request.domains}
+
+
+@api_router.post("/auth/me/subscription/upgrade")
+async def upgrade_to_premium(
+    request: SubscriptionUpgradeRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Upgrade user to premium plan via ETH payment (or test mode)"""
+    user_plan = current_user.get("subscription_plan") if isinstance(current_user, dict) else current_user.subscription_plan
+    if user_plan == "premium":
+        raise HTTPException(status_code=400, detail="You are already a premium member!")
+
+    if not request.test_mode and not request.tx_hash:
+        raise HTTPException(status_code=400, detail="Transaction hash is required for premium upgrade")
+
+    # In test mode, skip on-chain verification
+    if not request.test_mode and request.tx_hash:
+        # Basic tx_hash format validation (0x + 64 hex chars)
+        if not request.tx_hash.startswith("0x") or len(request.tx_hash) != 66:
+            raise HTTPException(status_code=400, detail="Invalid transaction hash format")
+        logger.info(f"Premium upgrade tx hash verified (format): {request.tx_hash[:20]}...")
+
+    # Update user subscription
+    premium_since = datetime.now(timezone.utc).isoformat()
+    user_id = current_user.get("id") if isinstance(current_user, dict) else current_user.id
+    current_rep = current_user.get("reputation_score") if isinstance(current_user, dict) else current_user.reputation_score
+    
+    success = await firebase_db.update_user(user_id, {
+        "subscription_plan": "premium",
+        "premium_paid": True,
+        "premium_since": premium_since,
+        "reputation_score": (current_rep or 100) + 50  # Premium bonus
+    })
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to upgrade subscription")
+
+    username = current_user.get('username') if isinstance(current_user, dict) else current_user.username
+    logger.info(f"🌟 User {username} upgraded to Premium! tx={request.tx_hash or 'test-mode'}")
+
+    return {
+        "message": "🎉 Welcome to Premium! Your account has been upgraded.",
+        "plan": "premium",
+        "premium_since": premium_since,
+        "benefits": [
+            "500MB file uploads",
+            "Priority listing in freelancer suggestions",
+            "Featured badge on profile",
+            "Advanced analytics",
+            "Priority support"
+        ]
+    }
+
+
+@api_router.get("/freelancers/suggested")
+async def get_suggested_freelancers(
+    domain: Optional[str] = None,
+    limit: int = 6,
+    exclude_id: Optional[str] = None
+):
+    """
+    Get suggested freelancers for a given domain.
+    Returns two separate lists:
+      - domain_freelancers: exact domain match, premium first then by tasks/rating
+      - other_freelancers: different domain but with completed tasks, sorted by tasks desc
+    """
+    import re as _re
+
+    def matches_domain(user, domain_lower):
+        """Word-boundary domain matching to avoid false positives (e.g. 'html' != 'ml')."""
+        domains = user.get("domains") or []
+        skills = user.get("skills") or []
+        all_entries = domains + skills
+        
+        try:
+            pattern = _re.compile(r'\b' + _re.escape(domain_lower) + r'\b')
+            for entry in all_entries:
+                if pattern.search(entry.lower()):
+                    return True
+        except Exception:
+            # Fallback if regex compilation fails for some weird string
+            for entry in all_entries:
+                if domain_lower in entry.lower():
+                    return True
+        return False
+
+    def domain_sort_key(u):
+        """For domain-matched: premium > completed_tasks > rating"""
+        is_premium = 1 if u.get("subscription_plan") == "premium" else 0
+        tasks = int(u.get("completed_tasks", 0))
+        rating = float(u.get("rating", 0))
+        return (-is_premium, -tasks, -rating)
+
+    def other_sort_key(u):
+        """For others: completed_tasks > rating (no premium boost since off-domain)"""
+        tasks = int(u.get("completed_tasks", 0))
+        rating = float(u.get("rating", 0))
+        return (-tasks, -rating)
+
+    def make_result(u, is_other=False):
+        return {
+            "id": u.get("id"),
+            "username": u.get("username"),
+            "domains": u.get("domains", []),
+            "rating": u.get("rating", 5.0),
+            "completed_tasks": u.get("completed_tasks", 0),
+            "reputation_score": u.get("reputation_score", 100),
+            "subscription_plan": u.get("subscription_plan", "free"),
+            "user_type": u.get("user_type"),
+            "is_other_domain": is_other,
+        }
+
+    try:
+        all_users = await firebase_db.get_all_users()
+        all_freelancers = [
+            u for u in all_users 
+            if u.get("user_type") == "freelancer" and u.get("id") != exclude_id
+        ]
+
+        if domain and domain.lower() != "all":
+            domain_lower = domain.lower()
+
+            # Separate domain-matched from non-matched
+            domain_matched = [u for u in all_freelancers if matches_domain(u, domain_lower)]
+            domain_matched.sort(key=domain_sort_key)
+
+            # Others: NOT in domain AND have at least 1 completed task
+            others = [
+                u for u in all_freelancers
+                if not matches_domain(u, domain_lower) and int(u.get("completed_tasks", 0)) > 0
+            ]
+            others.sort(key=other_sort_key)
+
+            domain_result = [make_result(u, is_other=False) for u in domain_matched[:limit]]
+            other_result = [make_result(u, is_other=True) for u in others[:limit]]
+
+            return {
+                "domain_freelancers": domain_result,
+                "other_freelancers": other_result,
+                "domain": domain,
+                "freelancers": domain_result + other_result,
+                "total": len(domain_result) + len(other_result),
+            }
+        else:
+            all_freelancers.sort(key=domain_sort_key)
+            result = [make_result(u) for u in all_freelancers[:limit]]
+            return {
+                "domain_freelancers": result,
+                "other_freelancers": [],
+                "freelancers": result,
+                "total": len(result),
+                "domain": domain,
+            }
+
+    except Exception as e:
+        logger.error(f"Failed to fetch suggested freelancers: {e}")
+        return {"domain_freelancers": [], "other_freelancers": [], "freelancers": [], "total": 0, "domain": domain}
+
+
+@api_router.delete("/auth/me/subscription")
+async def remove_subscription(current_user: User = Depends(get_current_user)):
+    """[TEST ONLY] Downgrade account back to free tier"""
+    user_id = current_user.get("id") if isinstance(current_user, dict) else current_user.id
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID not found")
+
+    update_data = {
+        "subscription_plan": "free",
+        "premium_paid": False,
+        "premium_since": None,
+    }
+
+    success = await firebase_db.update_user(user_id, update_data)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to remove subscription")
+
+    return {"message": "Premium removed. Account is now Free tier.", "subscription_plan": "free"}
+
+
+@api_router.get("/premium/info")
+async def get_premium_info():
+    """Get premium plan information and pricing"""
+    return {
+        "price_eth": PREMIUM_PRICE_ETH,
+        "escrow_address": PREMIUM_ESCROW_ADDRESS,
+        "currency": "ETH",
+        "benefits": [
+            {"icon": "📁", "title": "500MB File Uploads", "desc": "Upload large files up to 500MB (Free: 50MB)"},
+            {"icon": "⭐", "title": "Priority Listing", "desc": "Appear first in client search results and suggestions"},
+            {"icon": "🏆", "title": "Premium Badge", "desc": "Stand out with a verified premium badge on your profile"},
+            {"icon": "📊", "title": "Advanced Analytics", "desc": "Detailed stats on your profile views, bid success rate"},
+            {"icon": "🚀", "title": "Featured in Emails", "desc": "Get featured in client newsletters and roundups"},
+            {"icon": "💬", "title": "Priority Support", "desc": "Skip the queue with dedicated priority support"},
+            {"icon": "🔒", "title": "Enhanced Trust Score", "desc": "+50 bonus reputation points on upgrade"},
+            {"icon": "📢", "title": "Promoted Tasks", "desc": "Your task bids are highlighted to clients"}
+        ]
+    }
 
 # Include the router in the main app
 app.include_router(api_router)

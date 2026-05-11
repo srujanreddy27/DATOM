@@ -1,0 +1,65 @@
+{
+  "domain_freelancers": [],
+  "other_freelancers": [
+    {
+      "id": "f0ec41a0-0ee2-4bd5-b1c4-e8c08df5db20",
+      "username": "Ajay Ratnam",
+      "domains": [
+        "AI/ML",
+        "Web Development"
+      ],
+      "rating": 5.0,
+      "completed_tasks": 2,
+      "reputation_score": 100,
+      "subscription_plan": "free",
+      "user_type": "freelancer",
+      "is_other_domain": true
+    },
+    {
+      "id": "4a36b7cb-1f67-47a2-a97f-08e2d568fa52",
+      "username": "singadisrujanreddy",
+      "domains": [
+        "AI/ML",
+        "Web Development"
+      ],
+      "rating": 5.0,
+      "completed_tasks": 1,
+      "reputation_score": 100,
+      "subscription_plan": "free",
+      "user_type": "freelancer",
+      "is_other_domain": true
+    }
+  ],
+  "domain": "Blockchain",
+  "freelancers": [
+    {
+      "id": "f0ec41a0-0ee2-4bd5-b1c4-e8c08df5db20",
+      "username": "Ajay Ratnam",
+      "domains": [
+        "AI/ML",
+        "Web Development"
+      ],
+      "rating": 5.0,
+      "completed_tasks": 2,
+      "reputation_score": 100,
+      "subscription_plan": "free",
+      "user_type": "freelancer",
+      "is_other_domain": true
+    },
+    {
+      "id": "4a36b7cb-1f67-47a2-a97f-08e2d568fa52",
+      "username": "singadisrujanreddy",
+      "domains": [
+        "AI/ML",
+        "Web Development"
+      ],
+      "rating": 5.0,
+      "completed_tasks": 1,
+      "reputation_score": 100,
+      "subscription_plan": "free",
+      "user_type": "freelancer",
+      "is_other_domain": true
+    }
+  ],
+  "total": 2
+}

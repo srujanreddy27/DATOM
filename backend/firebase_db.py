@@ -173,6 +173,18 @@ class FirebaseDB:
             logger.error(f"Failed to update user: {e}")
             return False
 
+    async def get_all_users(self) -> List[dict]:
+        """Get all users from Firestore or memory"""
+        try:
+            if self.db:
+                docs = self.db.collection(USERS_COLLECTION).stream()
+                return [doc.to_dict() for doc in docs]
+            else:
+                return self.memory_users.copy()
+        except Exception as e:
+            logger.error(f"Failed to get all users: {e}")
+            return []
+
     # Task operations
     async def save_task(self, task_data: dict) -> bool:
         """Save task to Firestore"""
@@ -953,6 +965,97 @@ class FirebaseDB:
             logger.error(f"Failed to get chat messages: {e}")
             return []
 
+    async def get_messages_by_project_id(self, project_id: str) -> List[dict]:
+        """Get all group chat messages for a project (sync projects only).
+        Sorts in Python to avoid requiring a Firestore composite index.
+        """
+        try:
+            if self.db:
+                docs = self.db.collection(CHAT_MESSAGES_COLLECTION)\
+                    .where('project_id', '==', project_id)\
+                    .stream()  # No .order_by() — avoids composite index requirement
+                msgs = [doc.to_dict() for doc in docs]
+            else:
+                msgs = [m for m in self.memory_chat_messages if m.get('project_id') == project_id]
+
+            # Sort by timestamp in Python (handles both datetime and ISO string timestamps)
+            def sort_key(m):
+                ts = m.get('timestamp', '')
+                if hasattr(ts, 'timestamp'):     # datetime object
+                    return ts.timestamp()
+                try:
+                    from datetime import datetime as _dt
+                    return _dt.fromisoformat(str(ts).replace('Z', '+00:00')).timestamp()
+                except Exception:
+                    return 0.0
+
+            msgs.sort(key=sort_key)
+            return msgs
+        except Exception as e:
+            logger.error(f"Failed to get group chat messages: {e}")
+            return []
+
+    async def get_messages_between_users(self, user1_id: str, user2_id: str) -> List[dict]:
+        try:
+            if self.db:
+                # Firestore UI doesn't support complex OR queries easily without composite indexes
+                # We fetch all where sender is user1 and receiver is user2 AND vice-versa, then combine and sort.
+                query1 = self.db.collection(CHAT_MESSAGES_COLLECTION)\
+                    .where('sender_id', '==', user1_id)\
+                    .where('receiver_id', '==', user2_id).stream()
+                query2 = self.db.collection(CHAT_MESSAGES_COLLECTION)\
+                    .where('sender_id', '==', user2_id)\
+                    .where('receiver_id', '==', user1_id).stream()
+                
+                msgs = [doc.to_dict() for doc in query1] + [doc.to_dict() for doc in query2]
+                msgs.sort(key=lambda x: x.get('timestamp', ''))
+                return msgs
+            else:
+                msgs = [
+                    m for m in self.memory_chat_messages 
+                    if (m.get('sender_id') == user1_id and m.get('receiver_id') == user2_id) or
+                       (m.get('sender_id') == user2_id and m.get('receiver_id') == user1_id)
+                ]
+                msgs.sort(key=lambda m: m.get('timestamp', ''))
+                return msgs
+        except Exception as e:
+            logger.error(f"Failed to get direct messages: {e}")
+            return []
+
+    async def get_user_inbox(self, user_id: str) -> List[dict]:
+        """Returns a list of unique user IDs the user has chatted with, ordered by most recent"""
+        try:
+            if self.db:
+                # Fetch all messages where user is sender
+                sent = self.db.collection(CHAT_MESSAGES_COLLECTION).where('sender_id', '==', user_id).stream()
+                # Fetch all messages where user is receiver
+                received = self.db.collection(CHAT_MESSAGES_COLLECTION).where('receiver_id', '==', user_id).stream()
+                msgs = [doc.to_dict() for doc in sent] + [doc.to_dict() for doc in received]
+            else:
+                msgs = [
+                    m for m in self.memory_chat_messages 
+                    if m.get('sender_id') == user_id or m.get('receiver_id') == user_id
+                ]
+
+            msgs.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+            
+            # Extract unique contacts and keep the latest message info
+            inbox_dict = {}
+            for msg in msgs:
+                contact_id = msg.get('receiver_id') if msg.get('sender_id') == user_id else msg.get('sender_id')
+                if contact_id and contact_id not in inbox_dict:
+                    inbox_dict[contact_id] = {
+                        'contact_id': contact_id,
+                        'last_message': msg.get('content', ''),
+                        'last_timestamp': msg.get('timestamp', ''),
+                        'sender_id': msg.get('sender_id')
+                    }
+            
+            return list(inbox_dict.values())
+        except Exception as e:
+            logger.error(f"Failed to get user inbox: {e}")
+            return []
 
 # Global instance
+
 firebase_db = FirebaseDB()

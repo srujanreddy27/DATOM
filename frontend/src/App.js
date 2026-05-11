@@ -12,6 +12,7 @@ import ProjectCard from "./components/ProjectCard";
 import BidModal from "./components/BidModal";
 import BidChatPanel from "./components/BidChatPanel";
 import MyBidsComponent from "./components/MyBids";
+import MessagesPage from "./components/MessagesPage";
 import { ethers } from "ethers";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
@@ -61,7 +62,15 @@ import {
   MessageSquare,
   Trash2,
   AlertCircle,
-  Filter
+  Filter,
+  Crown,
+  Sparkles,
+  Rocket,
+  Trophy,
+  CreditCard,
+  BarChart2,
+  Upload,
+  Send
 } from "lucide-react";
 import { Calendar } from "./components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
@@ -529,42 +538,51 @@ const Navigation = React.memo(() => {
             <div className="hidden md:flex items-center space-x-1">
               <Link
                 to="/"
-                className="flex items-center px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                className="flex items-center px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium text-sm"
               >
-                <Home className="w-4 h-4 mr-2" />
+                <Home className="w-4 h-4 mr-1.5" />
                 Home
               </Link>
               <Link
                 to="/tasks"
-                className="flex items-center px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                className="flex items-center px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium text-sm"
               >
-                <Search className="w-4 h-4 mr-2" />
-                Browse Tasks
+                <Search className="w-4 h-4 mr-1.5" />
+                Explore
               </Link>
               <Link
                 to="/projects"
-                className="flex items-center px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                className="flex items-center px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium text-sm"
               >
-                <Layers className="w-4 h-4 mr-2" />
+                <Layers className="w-4 h-4 mr-1.5" />
                 Projects
               </Link>
               {user && user.user_type === 'freelancer' && (
                 <>
                   <Link
                     to="/my-submissions"
-                    className="flex items-center px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                    className="flex items-center px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium text-sm"
                   >
-                    <Briefcase className="w-4 h-4 mr-2" />
-                    My Submissions
+                    <Briefcase className="w-4 h-4 mr-1.5" />
+                    Submissions
                   </Link>
                   <Link
                     to="/my-bids"
-                    className="flex items-center px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium"
+                    className="flex items-center px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium text-sm"
                   >
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    My Bids
+                    <MessageSquare className="w-4 h-4 mr-1.5" />
+                    Bids
                   </Link>
                 </>
+              )}
+              {user && (
+                <Link
+                  to="/messages"
+                  className="flex items-center px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200 font-medium text-sm"
+                >
+                  <MessageSquare className="w-4 h-4 mr-1.5" />
+                  Messages
+                </Link>
               )}
             </div>
 
@@ -635,13 +653,27 @@ const Navigation = React.memo(() => {
                     onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
                     className={`flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-all duration-200 group ${isUserDropdownOpen ? 'bg-gray-800/50' : ''}`}
                   >
-                    <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-full flex items-center justify-center shadow-lg">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-lg relative ${
+                      user.subscription_plan === 'premium'
+                        ? 'bg-gradient-to-br from-amber-400 to-yellow-600 ring-2 ring-amber-400/50'
+                        : 'bg-gradient-to-br from-teal-500 to-cyan-600'
+                    }`}>
                       <User className="w-4 h-4 text-white" />
+                      {user.subscription_plan === 'premium' && (
+                        <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center">
+                          <Crown className="w-2.5 h-2.5 text-gray-900" />
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-col items-start">
-                      <span className="text-sm font-medium text-white group-hover:text-teal-300 transition-colors">
-                        {user.username}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm font-medium text-white group-hover:text-teal-300 transition-colors">
+                          {user.username}
+                        </span>
+                        {user.subscription_plan === 'premium' && (
+                          <span className="text-xs bg-gradient-to-r from-amber-400 to-yellow-500 text-gray-900 font-bold px-1.5 py-0.5 rounded-full leading-none">PRO</span>
+                        )}
+                      </div>
                       <span className="text-xs text-gray-400 capitalize">
                         {user.user_type}
                       </span>
@@ -661,13 +693,23 @@ const Navigation = React.memo(() => {
                     <div className="absolute right-0 mt-2 w-64 bg-gray-900/95 backdrop-blur-lg border border-gray-700/50 rounded-xl shadow-xl py-2 z-50 animate-in slide-in-from-top-2 duration-200">
                       <div className="px-4 py-3 border-b border-gray-700/50">
                         <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-full flex items-center justify-center flex-shrink-0">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            user.subscription_plan === 'premium'
+                              ? 'bg-gradient-to-br from-amber-400 to-yellow-600'
+                              : 'bg-gradient-to-br from-teal-500 to-cyan-600'
+                          }`}>
                             <User className="w-5 h-5 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-white truncate">{user.username}</p>
                             <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                            <p className="text-xs text-teal-400 capitalize">{user.user_type}</p>
+                            {user.subscription_plan === 'premium' ? (
+                              <p className="text-xs text-amber-400 font-semibold flex items-center gap-1">
+                                <Crown className="w-3 h-3" /> Premium Member
+                              </p>
+                            ) : (
+                              <p className="text-xs text-teal-400 capitalize">{user.user_type}</p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -681,6 +723,16 @@ const Navigation = React.memo(() => {
                           <User className="w-4 h-4 mr-3" />
                           Profile
                         </Link>
+                        {user.subscription_plan !== 'premium' && (
+                          <Link
+                            to="/pricing"
+                            className="flex items-center px-4 py-2 text-sm text-amber-400 hover:bg-amber-500/10 transition-colors"
+                            onClick={() => setIsUserDropdownOpen(false)}
+                          >
+                            <Crown className="w-4 h-4 mr-3" />
+                            Upgrade to Premium
+                          </Link>
+                        )}
                         <button
                           onClick={() => {
                             logout();
@@ -760,9 +812,19 @@ const Navigation = React.memo(() => {
                         onClick={() => setIsMenuOpen(false)}
                       >
                         <MessageSquare className="w-4 h-4 mr-3" />
-                        My Bids
+                        Bids
                       </Link>
                     </>
+                  )}
+                  {user && (
+                    <Link
+                      to="/messages"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-800/50 hover:text-white rounded-lg transition-colors border-b border-gray-800/50"
+                    >
+                      <MessageSquare className="w-4 h-4 mr-3" />
+                      Messages
+                    </Link>
                   )}
                 </div>
 
@@ -1234,6 +1296,13 @@ const ProfilePage = () => {
   const [isUpdatingUserType, setIsUpdatingUserType] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationMessage, setCelebrationMessage] = useState('');
+  // Premium & domain states
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [isPremiumLoading, setIsPremiumLoading] = useState(false);
+  const [premiumTxHash, setPremiumTxHash] = useState('');
+  const [userDomains, setUserDomains] = useState([]);
+  const [isSavingDomains, setIsSavingDomains] = useState(false);
+  const [domainsSaved, setDomainsSaved] = useState(false);
   const navigate = useNavigate();
 
   // Function to update client spending based on funded tasks
@@ -1280,6 +1349,7 @@ const ProfilePage = () => {
           headers: { 'Authorization': `Bearer ${firebaseToken}` }
         });
         setUser(response.data.user);
+        setUserDomains(response.data.user.domains || []);
 
         // Update user's total spending if they are a client and have funded tasks
         if (response.data.user.user_type === 'client') {
@@ -1411,6 +1481,101 @@ const ProfilePage = () => {
     }
   };
 
+  // Handle premium upgrade via MetaMask
+  const handleUpgradePremium = async (testMode = false) => {
+    setIsPremiumLoading(true);
+    try {
+      const firebaseToken = localStorage.getItem('firebase_token');
+      let txHash = null;
+
+      if (!testMode) {
+        if (!window.ethereum) {
+          alert('MetaMask not found. Please install MetaMask or use the Test mode.');
+          setIsPremiumLoading(false);
+          return;
+        }
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        if (!accounts.length) { setIsPremiumLoading(false); return; }
+
+        // Switch to correct network
+        try {
+          await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] });
+        } catch (switchErr) {
+          if (switchErr.code === 4902) {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{ chainId: CHAIN_ID_HEX, chainName: NETWORK_NAME, nativeCurrency: { name: CURRENCY_SYMBOL, symbol: CURRENCY_SYMBOL, decimals: 18 }, rpcUrls: [RPC_URL], blockExplorerUrls: [] }],
+            });
+          }
+        }
+
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner(accounts[0]);
+        const valueWei = ethers.parseEther('0.0001');
+        const tx = await signer.sendTransaction({ to: ESCROW_ADDRESS, value: valueWei });
+        txHash = tx.hash;
+        console.log('✅ Premium tx sent! Hash:', txHash, '(not waiting for confirmation to avoid RPC overload)');
+        // NOTE: We intentionally skip tx.wait() to avoid the eth_blockNumber RPC polling error.
+        // The tx hash is enough proof for our backend in test/staging mode.
+        // In production, use a webhook or background job to confirm on-chain.
+      }
+
+      const res = await axios.post(`${API}/auth/me/subscription/upgrade`,
+        { tx_hash: txHash, test_mode: testMode },
+        { headers: { 'Authorization': `Bearer ${firebaseToken}` } }
+      );
+
+      // Update local user state
+      const updatedUser = { ...user, subscription_plan: 'premium', premium_paid: true };
+      setUser(updatedUser);
+      localStorage.setItem('cached_user_data', JSON.stringify(updatedUser));
+      setShowPremiumModal(false);
+      alert('🎉 ' + res.data.message);
+    } catch (err) {
+      console.error('Premium upgrade failed:', err);
+      alert('Upgrade failed: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setIsPremiumLoading(false);
+    }
+  };
+
+  // Handle saving domains/skills
+  const handleSaveDomains = async () => {
+    setIsSavingDomains(true);
+    try {
+      const firebaseToken = localStorage.getItem('firebase_token');
+      await axios.put(`${API}/auth/me/domains`,
+        { domains: userDomains },
+        { headers: { 'Authorization': `Bearer ${firebaseToken}` } }
+      );
+      const updatedUser = { ...user, domains: userDomains };
+      setUser(updatedUser);
+      localStorage.setItem('cached_user_data', JSON.stringify(updatedUser));
+      setDomainsSaved(true);
+      setTimeout(() => setDomainsSaved(false), 3000);
+    } catch (err) {
+      alert('Failed to save domains: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setIsSavingDomains(false);
+    }
+  };
+
+  // Handle removing premium (test/dev only)
+  const handleRemovePremium = async () => {
+    if (!window.confirm('Remove premium status? (Test only — this resets your account to Free)')) return;
+    try {
+      const firebaseToken = localStorage.getItem('firebase_token');
+      await axios.delete(`${API}/auth/me/subscription`,
+        { headers: { 'Authorization': `Bearer ${firebaseToken}` } }
+      );
+      const updatedUser = { ...user, subscription_plan: 'free', premium_paid: false };
+      setUser(updatedUser);
+      localStorage.setItem('cached_user_data', JSON.stringify(updatedUser));
+    } catch (err) {
+      alert('Failed to remove premium: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-950 pt-20">
       <div className="container mx-auto px-6 py-8">
@@ -1453,6 +1618,13 @@ const ProfilePage = () => {
                       <Mail className="w-4 h-4" />
                       <span>{user.email}</span>
                     </div>
+                    {user.subscription_plan === 'premium' && (
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <span className="flex items-center gap-1 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-400 border border-amber-500/30 rounded-full px-3 py-1 text-xs font-semibold">
+                          <Crown className="w-3.5 h-3.5" /> Premium Member
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1479,6 +1651,150 @@ const ProfilePage = () => {
                   </div>
                   <div className="text-sm text-gray-400">Reputation Score</div>
                 </div>
+              </div>
+              {user.subscription_plan === 'premium' && (
+                <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-500/30 flex items-center gap-3">
+                  <Crown className="w-5 h-5 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="text-amber-400 font-semibold text-sm">You have Premium Membership!</p>
+                    <p className="text-amber-300/70 text-xs mt-0.5">500MB uploads · Priority listing · Featured badge · +50 rep bonus</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Premium Plan Card */}
+          <div className={`rounded-2xl border mb-6 overflow-hidden ${
+            user.subscription_plan === 'premium'
+              ? 'border-amber-500/40 bg-gradient-to-br from-amber-900/30 to-yellow-900/20'
+              : 'border-gray-700/60 bg-gray-900/50'
+          }`}>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    user.subscription_plan === 'premium'
+                      ? 'bg-gradient-to-br from-amber-400 to-yellow-500'
+                      : 'bg-gray-800'
+                  }`}>
+                    <Crown className={`w-5 h-5 ${user.subscription_plan === 'premium' ? 'text-gray-900' : 'text-gray-400'}`} />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-bold text-lg">
+                      {user.subscription_plan === 'premium' ? '👑 Premium Plan' : 'Free Plan'}
+                    </h3>
+                    <p className="text-gray-400 text-sm">
+                      {user.subscription_plan === 'premium'
+                        ? 'You enjoy all premium benefits'
+                        : 'Upgrade for 0.0001 ETH / month'}
+                    </p>
+                  </div>
+                </div>
+                {user.subscription_plan !== 'premium' ? (
+                  <Button
+                    onClick={() => setShowPremiumModal(true)}
+                    className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-gray-900 font-bold px-5"
+                  >
+                    <Sparkles className="w-4 h-4 mr-1.5" /> Upgrade Now
+                  </Button>
+                ) : (
+                  <button
+                    onClick={handleRemovePremium}
+                    className="text-xs text-gray-600 hover:text-red-400 border border-gray-700/50 hover:border-red-500/40 rounded-lg px-2.5 py-1.5 transition-colors"
+                    title="Dev/Test only: reverts your account to free tier"
+                  >
+                    🧪 Remove Premium
+                  </button>
+                )}
+              </div>
+
+              {user.subscription_plan === 'premium' ? (
+                // Premium Active — show active benefits cleanly
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { icon: '📁', label: '500MB', sub: 'Max file size' },
+                    { icon: '⭐', label: 'Priority', sub: 'Listing rank' },
+                    { icon: '📊', label: 'Analytics', sub: 'Advanced stats' },
+                    { icon: '🚀', label: 'Featured', sub: 'In emails & search' },
+                  ].map((item, i) => (
+                    <div key={i} className="p-3 rounded-xl text-center border bg-amber-500/10 border-amber-500/30">
+                      <span className="text-xl mb-1 block">{item.icon}</span>
+                      <p className="text-sm font-semibold text-amber-300">{item.label}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{item.sub}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                // Free — show what they're missing (dimmed tiles + active file size)
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { icon: Upload, label: '50MB', sub: 'Max file size', active: true },
+                    { icon: Trophy, label: 'Priority', sub: 'Listing rank', active: false },
+                    { icon: BarChart2, label: 'Analytics', sub: 'Advanced stats', active: false },
+                    { icon: Rocket, label: 'Featured', sub: 'In search & emails', active: false },
+                  ].map((item, i) => (
+                    <div key={i} className={`p-3 rounded-xl text-center border ${
+                      item.active ? 'bg-teal-500/10 border-teal-500/30' : 'bg-gray-800/40 border-gray-700/50 opacity-50'
+                    }`}>
+                      <item.icon className={`w-5 h-5 mx-auto mb-1 ${item.active ? 'text-teal-400' : 'text-gray-600'}`} />
+                      <p className={`text-sm font-semibold ${item.active ? 'text-teal-300' : 'text-gray-500'}`}>{item.label}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{item.sub}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Domain / Skills Card */}
+          <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800 mb-6">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <Tag className="w-5 h-5 text-teal-400" />
+                Your Expertise Domains
+              </CardTitle>
+              <CardDescription className="text-gray-400">
+                {user.user_type === 'freelancer'
+                  ? 'Select your skill domains — clients will see you as a suggested freelancer in these areas'
+                  : 'Select areas you most frequently post tasks in'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2 mb-5">
+                {categories.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      setUserDomains(prev =>
+                        prev.includes(cat) ? prev.filter(d => d !== cat) : [...prev, cat]
+                      );
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                      userDomains.includes(cat)
+                        ? 'bg-teal-500/20 border-teal-500/60 text-teal-300'
+                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                    }`}
+                  >
+                    {userDomains.includes(cat) ? '✓ ' : ''}{cat}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={handleSaveDomains}
+                  disabled={isSavingDomains}
+                  className="bg-teal-600 hover:bg-teal-700 text-white"
+                >
+                  {isSavingDomains ? (
+                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Saving...</>
+                  ) : 'Save Domains'}
+                </Button>
+                {domainsSaved && (
+                  <span className="text-emerald-400 text-sm flex items-center gap-1">
+                    <CheckCircle className="w-4 h-4" /> Saved successfully!
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1617,6 +1933,97 @@ const ProfilePage = () => {
           </Card>
         </div>
       </div>
+
+      {/* Premium Upgrade Modal */}
+      {showPremiumModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/90 backdrop-blur-lg p-4">
+          <div className="bg-gray-900 border border-amber-500/30 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border-b border-amber-500/20 px-6 py-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-yellow-500 rounded-xl flex items-center justify-center">
+                  <Crown className="w-5 h-5 text-gray-900" />
+                </div>
+                <div>
+                  <h2 className="text-white font-bold text-xl">Upgrade to Premium</h2>
+                  <p className="text-amber-400/80 text-sm">One-time payment · Lifetime access</p>
+                </div>
+              </div>
+              <button onClick={() => setShowPremiumModal(false)} className="text-gray-500 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Price */}
+            <div className="px-6 py-4 text-center border-b border-gray-800">
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-5xl font-black text-white">Ξ0.0001</span>
+                <span className="text-gray-400 text-lg">ETH</span>
+              </div>
+              <p className="text-gray-500 text-sm mt-1">≈ fractions of a cent · paid to platform escrow</p>
+            </div>
+
+            {/* Benefits */}
+            <div className="px-6 py-4 grid grid-cols-2 gap-2">
+              {[
+                { icon: '📁', text: '500MB File Uploads' },
+                { icon: '⭐', text: 'Priority in Suggestions' },
+                { icon: '🏆', text: 'Premium Badge' },
+                { icon: '📊', text: 'Advanced Analytics' },
+                { icon: '🚀', text: 'Featured in Emails' },
+                { icon: '💬', text: 'Priority Support' },
+                { icon: '🔒', text: '+50 Rep Points' },
+                { icon: '📢', text: 'Promoted Bids' },
+              ].map((b, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm text-gray-300">
+                  <span>{b.icon}</span>
+                  <span>{b.text}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Actions */}
+            <div className="px-6 pb-6 space-y-3">
+              <Button
+                onClick={() => handleUpgradePremium(false)}
+                disabled={isPremiumLoading}
+                className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-gray-900 font-bold py-3 h-auto text-base"
+              >
+                {isPremiumLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+                    Processing...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-5 h-5" />
+                    Pay Ξ0.0001 via MetaMask
+                  </div>
+                )}
+              </Button>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gray-800" />
+                <span className="text-gray-600 text-xs">or for testing</span>
+                <div className="flex-1 h-px bg-gray-800" />
+              </div>
+
+              <Button
+                onClick={() => handleUpgradePremium(true)}
+                disabled={isPremiumLoading}
+                variant="outline"
+                className="w-full border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 font-semibold py-3 h-auto"
+              >
+                <CheckCircle className="w-5 h-5 mr-2" />
+                ✅ Mark as Paid (Test Mode)
+              </Button>
+              <p className="text-center text-xs text-gray-600">
+                Test mode skips MetaMask and instantly activates premium for demo purposes
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Role Switch Celebration */}
       {showCelebration && (
@@ -2151,6 +2558,50 @@ const PostTaskPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [domainFreelancers, setDomainFreelancers] = useState([]);
+  const [otherFreelancers, setOtherFreelancers] = useState([]);
+  const [isLoadingFreelancers, setIsLoadingFreelancers] = useState(false);
+  const currentCategoryRef = useRef("");
+
+  // Fetch suggested freelancers when category changes
+  const fetchSuggestedFreelancers = async (domain, silent = false) => {
+    if (!domain) { setDomainFreelancers([]); setOtherFreelancers([]); return; }
+    
+    // Robustly fetch user ID to prevent closure staleness on fast mounts causing the client to see themselves
+    let currentUserId = user?.id;
+    if (!currentUserId) {
+      try {
+        const cached = JSON.parse(localStorage.getItem('cached_user_data'));
+        currentUserId = cached?.id;
+      } catch (e) {}
+    }
+
+    if (!silent) setIsLoadingFreelancers(true);
+    try {
+      const { data } = await axios.get(`${API}/freelancers/suggested`, { 
+        params: { domain, limit: 6, exclude_id: currentUserId, _t: Date.now() } 
+      });
+      setDomainFreelancers(data.domain_freelancers || []);
+      setOtherFreelancers(data.other_freelancers || []);
+    } catch (err) {
+      console.error('Failed to fetch suggested freelancers:', err);
+      if (!silent) { setDomainFreelancers([]); setOtherFreelancers([]); }
+    } finally {
+      if (!silent) setIsLoadingFreelancers(false);
+    }
+  };
+
+  // Real-time polling: re-fetch suggestions every 15s so premium upgrades surface immediately
+  useEffect(() => {
+    currentCategoryRef.current = formData.category;
+    if (!formData.category) return;
+    const interval = setInterval(() => {
+      if (currentCategoryRef.current) {
+        fetchSuggestedFreelancers(currentCategoryRef.current, true);
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [formData.category]); // eslint-disable-line
 
   // Fetch current user on component mount
   useEffect(() => {
@@ -2202,11 +2653,11 @@ const PostTaskPage = () => {
         console.log('PostTaskPage: User verified:', userData);
         setUser(userData);
 
-        // Check if user is a client - allow access but show info message
+        // Check if user is a client - block freelancers
         if (userData.user_type && userData.user_type !== 'client') {
-          console.log('PostTaskPage: User is not a client, but allowing access');
-          // Show informational message but don't block access
-          console.info('Note: You are accessing the task creation page as a freelancer. You can switch to client mode or continue.');
+          console.log('PostTaskPage: User is not a client, showing access denied');
+          setIsLoadingUser(false);
+          return;
         }
 
         // Set client name in form data
@@ -2501,6 +2952,23 @@ const PostTaskPage = () => {
     );
   }
 
+  if (user && user.user_type !== 'client') {
+    return (
+      <div className="min-h-screen bg-gray-950 pt-16 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <X className="w-10 h-10 text-red-400" />
+          </div>
+          <h2 className="text-3xl font-bold text-white mb-4">Access Denied</h2>
+          <p className="text-gray-400 mb-6">Only clients can post tasks. You are currently logged in as a Freelancer.</p>
+          <Button onClick={() => navigate('/profile')} className="bg-teal-600 hover:bg-teal-700 text-white">
+            Switch to Client Account
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 pt-16">
       <div className="container mx-auto px-6 py-12">
@@ -2579,7 +3047,10 @@ const PostTaskPage = () => {
                     <Label htmlFor="category" className="text-white font-medium">
                       Category *
                     </Label>
-                    <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
+                    <Select value={formData.category} onValueChange={(value) => {
+                      setFormData(prev => ({ ...prev, category: value }));
+                      fetchSuggestedFreelancers(value);
+                    }}>
                       <SelectTrigger className="bg-gray-800/50 border-gray-700 text-white">
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
@@ -2614,6 +3085,136 @@ const PostTaskPage = () => {
                     </div>
                   </div>
                 </div>
+                {/* Suggested Freelancers Panel */}
+                {formData.category && (
+                  <div className="rounded-2xl border border-teal-500/20 bg-teal-500/5 p-4 space-y-4">
+                    {/* ── Domain Freelancers ── */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Users className="w-4 h-4 text-teal-400" />
+                        <span className="text-teal-300 font-semibold text-sm">
+                          Suggested for <span className="text-white">{formData.category}</span>
+                        </span>
+                        {isLoadingFreelancers && <div className="w-3.5 h-3.5 border-2 border-teal-400 border-t-transparent rounded-full animate-spin ml-1" />}
+                        <span className="ml-auto text-xs text-gray-500">👑 Premium first</span>
+                      </div>
+
+                      {domainFreelancers.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {domainFreelancers.map(fl => {
+                            const isPremium = fl.subscription_plan === 'premium';
+                            return (
+                              <div
+                                key={fl.id}
+                                className={`p-3 rounded-xl border flex flex-col gap-3 ${
+                                  isPremium
+                                    ? 'border-amber-500/40 bg-amber-500/5 ring-1 ring-amber-500/20'
+                                    : 'border-gray-700 bg-gray-800/50'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 relative ${
+                                    isPremium ? 'bg-gradient-to-br from-amber-400 to-yellow-600' : 'bg-gray-700'
+                                  }`}>
+                                    <span className={isPremium ? 'text-gray-900 font-bold' : 'text-gray-300 font-bold'}>
+                                      {fl.username.charAt(0).toUpperCase()}
+                                    </span>
+                                    {isPremium && (
+                                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center">
+                                        <Crown className="w-2.5 h-2.5 text-gray-900" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                      <h4 className={`text-sm font-semibold truncate ${isPremium ? 'text-amber-400' : 'text-white'}`}>
+                                        {fl.username}
+                                      </h4>
+                                      {isPremium && (
+                                        <span className="text-xs bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0 rounded-full font-bold leading-tight shrink-0">PRO</span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                      <span className="text-amber-400 text-xs">{fl.rating}</span>
+                                      <span className="text-gray-500 text-xs ml-1">{fl.completed_tasks} tasks</span>
+                                    </div>
+                                    {fl.domains && fl.domains.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-1">
+                                        {fl.domains.slice(0, 2).map(d => (
+                                          <span key={d} className="text-xs bg-teal-500/10 text-teal-400 border border-teal-500/20 px-1.5 py-0 rounded-full leading-tight">{d}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <Button
+                                  onClick={() => navigate(`/messages/${fl.username}`)}
+                                  variant="outline"
+                                  size="sm"
+                                  className={`w-full mt-1 text-xs h-8 ${
+                                    isPremium
+                                      ? 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 hover:text-amber-200'
+                                      : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white'
+                                  }`}
+                                >
+                                  <MessageSquare className="w-3 h-3 mr-1.5" /> Message
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : !isLoadingFreelancers && (
+                        <p className="text-gray-500 text-sm text-center py-2">No freelancers found in <span className="text-teal-400">{formData.category}</span> yet.</p>
+                      )}
+                    </div>
+
+                    {/* ── Other Freelancers (cross-domain, sorted by tasks) ── */}
+                    {otherFreelancers.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3 pt-2 border-t border-gray-700/50">
+                          <TrendingUp className="w-4 h-4 text-gray-400" />
+                          <span className="text-gray-400 font-semibold text-sm">Other Top Freelancers</span>
+                          <span className="text-gray-600 text-xs ml-1">· High task count</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {otherFreelancers.map(fl => (
+                            <div key={fl.id} className="p-3 rounded-xl border border-gray-700/60 bg-gray-800/30 flex flex-col gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center shrink-0">
+                                  <span className="text-gray-300 font-bold">{fl.username.charAt(0).toUpperCase()}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-sm font-semibold text-gray-200 truncate">{fl.username}</h4>
+                                  <div className="flex items-center gap-1">
+                                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                    <span className="text-amber-400 text-xs">{fl.rating}</span>
+                                    <span className="text-gray-500 text-xs ml-1">{fl.completed_tasks} tasks</span>
+                                  </div>
+                                  {fl.domains && fl.domains.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {fl.domains.slice(0, 2).map(d => (
+                                        <span key={d} className="text-xs bg-gray-700/50 text-gray-400 border border-gray-600/30 px-1.5 py-0 rounded-full leading-tight">{d}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <Button
+                                onClick={() => navigate(`/messages/${fl.username}`)}
+                                variant="outline"
+                                size="sm"
+                                className="w-full mt-1 border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white text-xs h-8"
+                              >
+                                <MessageSquare className="w-3 h-3 mr-1.5" /> Message
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Deadline */}
                 <div className="space-y-2">
@@ -2963,6 +3564,11 @@ const ProjectDetailPage = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [bidModalOpen, setBidModalOpen] = useState(false);
   const [pid] = useState(() => window.location.pathname.split('/').filter(Boolean).pop());
+  const [groupMessages, setGroupMessages] = useState([]);
+  const [groupInput, setGroupInput] = useState('');
+  const [groupLoading, setGroupLoading] = useState(false);
+  const [isMember, setIsMember] = useState(false); // true if freelancer has accepted/paid bid on this project
+  const groupBottomRef = useRef(null);
 
   useEffect(() => {
     const cached = localStorage.getItem('cached_user_data');
@@ -2976,14 +3582,37 @@ const ProjectDetailPage = () => {
         const res = await axios.get(`${API}/projects/${pid}`);
         setProject(res.data);
 
-        // Fetch bids if owner
+        // Fetch bids if owner OR premium user
         const cached = localStorage.getItem('cached_user_data');
         const u = cached ? JSON.parse(cached) : null;
-        if (u && res.data.client_id === u.id) {
-          const bidsRes = await axios.get(`${API}/projects/${pid}/bids`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('firebase_token')}` }
-          });
-          setBids(bidsRes.data || []);
+        const isOwnerNow = u && res.data.client_id === u.id;
+        const isPremiumNow = u && u.subscription_plan === 'premium';
+        if (u && (isOwnerNow || isPremiumNow)) {
+          try {
+            const bidsRes = await axios.get(`${API}/projects/${pid}/bids`, {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('firebase_token')}` }
+            });
+            setBids(bidsRes.data || []);
+          } catch (bidsErr) {
+            console.warn('Could not fetch bids:', bidsErr?.response?.status);
+          }
+        }
+
+        // For sync projects: check if this user is a team member (accepted freelancer)
+        // This is needed separately because bids are only loaded for owner/premium,
+        // but accepted freelancers also need group chat access.
+        if (res.data.collaboration_type === 'sync' && u && !isOwnerNow) {
+          try {
+            // Probe the group-chat endpoint — a 200 means we're a member, 403 means we're not
+            await axios.get(`${API}/projects/${pid}/group-chat`, {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('firebase_token')}` }
+            });
+            setIsMember(true);
+          } catch (memberErr) {
+            setIsMember(memberErr?.response?.status !== 403); // any other error = treat as member
+          }
+        } else if (isOwnerNow) {
+          setIsMember(true); // owner is always a member
         }
       } catch (err) {
         setError('Failed to load project.');
@@ -2994,8 +3623,63 @@ const ProjectDetailPage = () => {
     if (pid) fetchData();
   }, [pid]);
 
+  // Poll group chat for sync projects — only runs when user is a member
+  useEffect(() => {
+    if (!pid || !isMember) return;
+
+    const fetchGroupMessages = async () => {
+      try {
+        const res = await axios.get(`${API}/projects/${pid}/group-chat`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('firebase_token')}` }
+        });
+        setGroupMessages(res.data || []);
+      } catch (err) {
+        if (err?.response?.status === 403) {
+          // No longer a member — stop polling
+          setIsMember(false);
+        }
+      }
+    };
+
+    fetchGroupMessages(); // immediate first load
+    const interval = setInterval(fetchGroupMessages, 3000);
+    return () => clearInterval(interval);
+  }, [pid, isMember]);
+
+  useEffect(() => {
+    groupBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [groupMessages]);
+
+  const fetchGroupMessages = async () => {
+    try {
+      const res = await axios.get(`${API}/projects/${pid}/group-chat`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('firebase_token')}` }
+      });
+      setGroupMessages(res.data || []);
+    } catch { /* silent */ }
+  };
+
+  const sendGroupMessage = async (e) => {
+    e.preventDefault();
+    if (!groupInput.trim()) return;
+    setGroupLoading(true);
+    try {
+      await axios.post(`${API}/projects/${pid}/group-chat`, { message: groupInput.trim() }, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('firebase_token')}` }
+      });
+      setGroupInput('');
+      await fetchGroupMessages(); // immediate refresh — don't wait for next poll
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to send message');
+    } finally {
+      setGroupLoading(false);
+    }
+  };
+
+
   const isOwner = user && project && project.client_id === user.id;
   const isFreelancer = user && user.user_type === 'freelancer';
+  const isPremium = user && user.subscription_plan === 'premium';
 
   if (loading) return (
     <div className="min-h-screen bg-gray-950 pt-24 flex items-center justify-center">
@@ -3106,6 +3790,64 @@ const ProjectDetailPage = () => {
                 ))}
               </CardContent>
             </Card>
+
+          {/* Group Chat — Sync projects only, visible to owner + accepted freelancers */}
+          {project.collaboration_type === 'sync' && user && isMember && (
+            <Card className="bg-gray-900/60 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white text-lg flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-teal-400" />
+                  Team Group Chat
+                  <Badge className="bg-teal-500/20 text-teal-300 border-teal-500/30 text-xs">Sync</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {/* Messages */}
+                <div className="h-64 overflow-y-auto p-4 space-y-3">
+                  {groupMessages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-gray-600 text-sm">No messages yet. Say hi to the team! 👋</p>
+                    </div>
+                  ) : (
+                    groupMessages.map((msg, i) => {
+                      const isMe = msg.sender_id === user?.id;
+                      return (
+                        <div key={i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[80%] ${isMe ? 'order-2' : 'order-1'}`}>
+                            {!isMe && <p className="text-xs text-gray-500 mb-0.5 ml-1">{msg.sender_name}</p>}
+                            <div className={`px-3 py-2 rounded-xl text-sm ${
+                              isMe
+                                ? 'bg-teal-600 text-white rounded-tr-sm'
+                                : 'bg-gray-800 text-gray-200 rounded-tl-sm'
+                            }`}>
+                              {msg.message}
+                            </div>
+                            <p className="text-xs text-gray-700 mt-0.5 mx-1">
+                              {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={groupBottomRef} />
+                </div>
+                {/* Input */}
+                <form onSubmit={sendGroupMessage} className="flex gap-2 p-3 border-t border-gray-700">
+                  <input
+                    value={groupInput}
+                    onChange={e => setGroupInput(e.target.value)}
+                    placeholder="Message the team…"
+                    className="flex-1 bg-gray-800 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-teal-500"
+                    disabled={groupLoading}
+                  />
+                  <Button type="submit" size="sm" disabled={groupLoading || !groupInput.trim()} className="bg-teal-600 hover:bg-teal-700 text-white px-4">
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
           </div>
 
           {/* Sidebar */}
@@ -3130,7 +3872,8 @@ const ProjectDetailPage = () => {
                   <span className="text-white text-sm">{project.bids_count || 0}</span>
                 </div>
 
-                {isFreelancer && project.status === 'open' && openRoles.length > 0 && (
+                {/* Place a Bid button — hidden for project owner (no self-bidding) */}
+                {isFreelancer && !isOwner && project.status === 'open' && openRoles.length > 0 && (
                   <Button
                     onClick={() => setBidModalOpen(true)}
                     className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white mt-2"
@@ -3142,27 +3885,39 @@ const ProjectDetailPage = () => {
               </CardContent>
             </Card>
 
-            {/* Bids (client view) */}
-            {isOwner && bids.length > 0 && (
+            {/* Bids (client view or premium market intelligence) */}
+            {(isOwner || isPremium) && bids.length > 0 && (
               <Card className="bg-gray-900/60 border-gray-700">
                 <CardHeader>
-                  <CardTitle className="text-white text-base">Bids ({bids.length})</CardTitle>
+                  <CardTitle className="text-white text-base flex items-center gap-2">
+                    Bids ({bids.length})
+                    {!isOwner && isPremium && (
+                      <span className="text-xs bg-gradient-to-r from-amber-400 to-yellow-500 text-gray-900 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Crown className="w-3 h-3" /> Premium Insight
+                      </span>
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 max-h-80 overflow-y-auto">
                   {bids.map(bid => (
                     <div
                       key={bid.id}
-                      onClick={() => { setSelectedBid(bid); setChatOpen(true); }}
-                      className="p-3 bg-gray-800/50 border border-gray-700 rounded-lg cursor-pointer hover:border-teal-500/50 transition-colors group"
+                      onClick={() => { if (isOwner) { setSelectedBid(bid); setChatOpen(true); } }}
+                      className={`p-3 bg-gray-800/50 border border-gray-700 rounded-lg transition-colors group ${
+                        isOwner ? 'cursor-pointer hover:border-teal-500/50' : 'cursor-default'
+                      }`}
                     >
                       <div className="flex items-center justify-between">
-                        <p className="text-white text-sm font-medium group-hover:text-teal-300">{bid.freelancer_name}</p>
+                        <p className={`text-white text-sm font-medium ${isOwner ? 'group-hover:text-teal-300' : ''}`}>{bid.freelancer_name}</p>
                         <span className="text-emerald-400 text-sm font-bold">Ξ{bid.proposed_amount}</span>
                       </div>
                       <p className="text-gray-500 text-xs mt-1">{bid.role_name}</p>
                       <Badge className={`text-xs mt-1 ${bid.status === 'accepted' ? 'bg-green-500/20 text-green-400' : bid.status === 'countered' ? 'bg-blue-500/20 text-blue-400' : bid.status === 'rejected' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
                         {bid.status}
                       </Badge>
+                      {!isOwner && isPremium && (
+                        <p className="text-xs text-gray-500 mt-1 truncate">{bid.message}</p>
+                      )}
                     </div>
                   ))}
                 </CardContent>
@@ -3890,32 +4645,182 @@ const ProjectPaymentPage = () => {
   );
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PRICING PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+const PricingPage = () => {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [isPremiumLoading, setIsPremiumLoading] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      const token = localStorage.getItem('firebase_token');
+      if (!token) return;
+      try {
+        const res = await axios.post(`${BACKEND_URL}/api/auth/firebase/verify`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUser(res.data.user);
+      } catch {}
+    };
+    load();
+  }, []);
+
+  const handleUpgrade = async (testMode = false) => {
+    if (!user) { navigate('/login.html'); return; }
+    if (user.subscription_plan === 'premium') { alert('You are already a Premium member! 👑'); return; }
+    setIsPremiumLoading(true);
+    try {
+      const token = localStorage.getItem('firebase_token');
+      let txHash = null;
+      if (!testMode) {
+        if (!window.ethereum) { alert('MetaMask not found. Use Test Mode below.'); setIsPremiumLoading(false); return; }
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        try { await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] }); } catch {}
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner(accounts[0]);
+        const tx = await signer.sendTransaction({ to: ESCROW_ADDRESS, value: ethers.parseEther('0.0001') });
+        // Skip tx.wait() — avoids eth_blockNumber RPC overload error
+        txHash = tx.hash;
+        console.log('✅ Premium tx sent! Hash:', txHash);
+      }
+      await axios.post(`${API}/auth/me/subscription/upgrade`,
+        { tx_hash: txHash, test_mode: testMode },
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      const updatedUser = { ...user, subscription_plan: 'premium', premium_paid: true };
+      setUser(updatedUser);
+      localStorage.setItem('cached_user_data', JSON.stringify(updatedUser));
+      setShowSuccess(true);
+    } catch (err) {
+      alert('Upgrade failed: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setIsPremiumLoading(false);
+    }
+  };
+
+
+  const benefits = [
+    { icon: '📁', title: '500MB File Uploads', sub: 'Free: 50MB', free: '50MB', premium: '500MB' },
+    { icon: '⭐', title: 'Priority Listing', sub: 'Appear first in suggestions', free: false, premium: true },
+    { icon: '🏆', title: 'Premium Badge', sub: 'Verified crown on profile', free: false, premium: true },
+    { icon: '📊', title: 'Advanced Analytics', sub: 'Profile views, bid stats', free: false, premium: true },
+    { icon: '🚀', title: 'Featured in Emails', sub: 'Reach more clients', free: false, premium: true },
+    { icon: '💬', title: 'Priority Support', sub: 'Skip the queue', free: false, premium: true },
+    { icon: '🔒', title: '+50 Reputation Bonus', sub: 'Automatic on upgrade', free: false, premium: true },
+    { icon: '📢', title: 'Promoted Bids', sub: 'Highlighted to clients', free: false, premium: true },
+    { icon: '✅', title: 'Task Creation', sub: 'Post and browse tasks', free: true, premium: true },
+    { icon: '🤝', title: 'Blockchain Escrow', sub: 'Trustless payments', free: true, premium: true },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-950 pt-20">
+      <div className="text-center py-16 px-6">
+        <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-4 py-2 mb-6">
+          <Crown className="w-4 h-4 text-amber-400" />
+          <span className="text-amber-400 text-sm font-semibold">DecentraTask Premium</span>
+        </div>
+        <h1 className="text-5xl font-black text-white mb-4">
+          Unlock <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">Premium</span>
+        </h1>
+        <p className="text-xl text-gray-400 max-w-xl mx-auto">
+          Get priority placement, larger file uploads, and exclusive benefits for just <span className="text-amber-400 font-bold">Ξ0.0001 ETH</span>
+        </p>
+      </div>
+      <div className="max-w-5xl mx-auto px-6 pb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+          <div className="rounded-2xl border border-gray-700 bg-gray-900/50 p-8">
+            <h2 className="text-2xl font-bold text-white mb-1">Free</h2>
+            <p className="text-gray-400 mb-6">Everything you need to get started</p>
+            <div className="text-4xl font-black text-white mb-6">Ξ0</div>
+            <Button variant="outline" className="w-full border-gray-700 text-gray-400 mb-6" disabled>Current Plan</Button>
+          </div>
+          <div className="rounded-2xl border-2 border-amber-500/60 bg-gradient-to-br from-amber-900/30 to-yellow-900/20 p-8 relative">
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-500 to-yellow-500 text-gray-900 font-black text-xs px-4 py-1.5 rounded-full">MOST POPULAR</div>
+            <div className="flex items-center gap-2 mb-1">
+              <Crown className="w-6 h-6 text-amber-400" />
+              <h2 className="text-2xl font-bold text-white">Premium</h2>
+            </div>
+            <p className="text-amber-300/70 mb-6">Priority placement + exclusive perks</p>
+            <div className="flex items-baseline gap-2 mb-6">
+              <span className="text-4xl font-black text-white">Ξ0.0001</span>
+              <span className="text-gray-400">ETH</span>
+            </div>
+            {user?.subscription_plan === 'premium' ? (
+              <Button className="w-full bg-emerald-600 text-white mb-4" disabled>
+                <CheckCircle className="w-4 h-4 mr-2" /> Active Plan
+              </Button>
+            ) : (
+              <>
+                <Button onClick={() => handleUpgrade(false)} disabled={isPremiumLoading}
+                  className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-gray-900 font-bold mb-3 h-12">
+                  {isPremiumLoading ? <><div className="w-4 h-4 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mr-2" />Processing...</> : <><Wallet className="w-4 h-4 mr-2" />Pay Ξ0.0001 via MetaMask</>}
+                </Button>
+                <Button onClick={() => handleUpgrade(true)} disabled={isPremiumLoading}
+                  variant="outline" className="w-full border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10">
+                  <CheckCircle className="w-4 h-4 mr-2" />✅ Mark as Paid (Test)
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-gray-800 overflow-hidden">
+          <div className="grid grid-cols-3 bg-gray-900 border-b border-gray-800 px-6 py-4">
+            <div className="text-gray-400 font-semibold">Feature</div>
+            <div className="text-center text-gray-400 font-semibold">Free</div>
+            <div className="text-center text-amber-400 font-semibold flex items-center justify-center gap-1"><Crown className="w-4 h-4" /> Premium</div>
+          </div>
+          {benefits.map((b, i) => (
+            <div key={i} className={`grid grid-cols-3 px-6 py-3.5 border-b border-gray-800/60 ${i % 2 === 0 ? 'bg-gray-900/40' : 'bg-transparent'}`}>
+              <div className="flex items-center gap-2">
+                <span>{b.icon}</span>
+                <div>
+                  <p className="text-white text-sm font-medium">{b.title}</p>
+                  <p className="text-gray-500 text-xs">{b.sub}</p>
+                </div>
+              </div>
+              <div className="text-center flex items-center justify-center">
+                {typeof b.free === 'boolean' ? (b.free ? <CheckCircle className="w-5 h-5 text-teal-400" /> : <X className="w-5 h-5 text-gray-600" />) : <span className="text-gray-400 text-sm font-medium">{b.free}</span>}
+              </div>
+              <div className="text-center flex items-center justify-center">
+                {typeof b.premium === 'boolean' ? (b.premium ? <CheckCircle className="w-5 h-5 text-amber-400" /> : <X className="w-5 h-5 text-gray-600" />) : <span className="text-amber-400 text-sm font-bold">{b.premium}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {showSuccess && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-900 border border-emerald-500 text-emerald-300 rounded-xl px-5 py-4 shadow-2xl flex items-center gap-3">
+          <CheckCircle className="w-6 h-6 shrink-0" />
+          <div><p className="font-semibold">🎉 Premium Activated!</p><p className="text-xs text-emerald-400 mt-0.5">Your account is now premium.</p></div>
+          <button onClick={() => setShowSuccess(false)} className="ml-2 text-emerald-400 hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APP
+// ─────────────────────────────────────────────────────────────────────────────
 function App() {
   useEffect(() => {
-    // Hide initial loader when React app starts
     if (window.hideInitialLoader) {
       window.hideInitialLoader();
     }
 
-    // Global wallet auto-reconnection on app load
     const autoConnectWallet = async () => {
       if (window.ethereum) {
         try {
-          // Check if user is logged in
           const firebaseToken = localStorage.getItem('firebase_token');
           if (firebaseToken) {
-            // Check if accounts are already connected
-            const accounts = await window.ethereum.request({ method: "eth_accounts" });
-            if (accounts.length > 0) {
-              // Wallet is already connected, no need to do anything
-            }
+            await window.ethereum.request({ method: "eth_accounts" });
           }
-        } catch (error) {
-          // Wallet auto-reconnection failed - user will need to connect manually
-        }
+        } catch {}
       }
     };
-
     autoConnectWallet();
   }, []);
 
@@ -3928,12 +4833,15 @@ function App() {
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/post-task" element={<PostTaskPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/pricing" element={<PricingPage />} />
           <Route path="/my-submissions" element={<MySubmissionsPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
           <Route path="/post-project" element={<PostProjectPage />} />
           <Route path="/my-bids" element={<MyBidsPage />} />
           <Route path="/pay-project/:projectId" element={<ProjectPaymentPage />} />
+          <Route path="/messages" element={<MessagesPage />} />
+          <Route path="/messages/:username" element={<MessagesPage />} />
         </Routes>
       </BrowserRouter>
     </div>

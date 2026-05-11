@@ -6,21 +6,25 @@ import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import {
-  X, Send, CheckCircle, XCircle, ArrowLeftRight, Clock, DollarSign, User
+  X, Send, CheckCircle, XCircle, ArrowLeftRight, Clock, User,
+  ThumbsUp, ThumbsDown, Handshake
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const statusInfo = {
-  pending: { label: 'Pending Review', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
-  accepted: { label: 'Accepted ✓', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
-  rejected: { label: 'Rejected', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
-  countered: { label: 'Counter Offered', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-  withdrawn: { label: 'Withdrawn', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
+  pending:             { label: 'Pending Review',         color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+  accepted:            { label: 'Accepted ✓',             color: 'bg-green-500/20 text-green-400 border-green-500/30' },
+  rejected:            { label: 'Rejected',               color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  countered:           { label: 'Counter Offered',        color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  withdrawn:           { label: 'Withdrawn',              color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
+  awaiting_freelancer: { label: '⏳ Awaiting Your Confirmation', color: 'bg-violet-500/20 text-violet-300 border-violet-500/30' },
+  paid:                { label: 'Paid 💸',                color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
 };
 
-const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidStatusChange }) => {
+const BidChatPanel = ({ bid: initialBid, isOpen, onClose, currentUser, isClientView, onBidStatusChange }) => {
+  const [bid, setBid] = useState(initialBid);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setSending] = useState(false);
@@ -36,6 +40,15 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
     headers: { 'Authorization': `Bearer ${localStorage.getItem('firebase_token')}` }
   });
 
+  const fetchBid = async () => {
+    if (!bid?.id) return;
+    try {
+      const res = await axios.get(`${API}/bids/${bid.id}`, getAuthHeader());
+      setBid(res.data);
+      onBidStatusChange && onBidStatusChange(res.data.id, res.data.status);
+    } catch { /* silent */ }
+  };
+
   const fetchMessages = async () => {
     if (!bid?.id) return;
     try {
@@ -49,10 +62,13 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
   useEffect(() => {
     if (isOpen && bid?.id) {
       fetchMessages();
-      pollingRef.current = setInterval(fetchMessages, 3000);
+      fetchBid();
+      pollingRef.current = setInterval(() => { fetchMessages(); fetchBid(); }, 3000);
     }
     return () => clearInterval(pollingRef.current);
   }, [isOpen, bid?.id]);
+
+  useEffect(() => { setBid(initialBid); }, [initialBid]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -74,11 +90,12 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
   };
 
   const handleAccept = async () => {
-    setActioning(true);
+    setActioning(true); setError('');
     try {
-      await axios.put(`${API}/bids/${bid.id}/accept`, {}, getAuthHeader());
-      onBidStatusChange && onBidStatusChange(bid.id, 'accepted');
-      onClose();
+      const res = await axios.put(`${API}/bids/${bid.id}/accept`, {}, getAuthHeader());
+      setBid(prev => ({ ...prev, status: 'awaiting_freelancer', final_amount: res.data.final_amount }));
+      onBidStatusChange && onBidStatusChange(bid.id, 'awaiting_freelancer');
+      await fetchMessages();
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to accept bid');
     } finally {
@@ -87,7 +104,7 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
   };
 
   const handleReject = async () => {
-    setActioning(true);
+    setActioning(true); setError('');
     try {
       await axios.put(`${API}/bids/${bid.id}/reject`, {}, getAuthHeader());
       onBidStatusChange && onBidStatusChange(bid.id, 'rejected');
@@ -102,18 +119,16 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
   const handleCounter = async (e) => {
     e.preventDefault();
     if (!counterAmount || parseFloat(counterAmount) <= 0) {
-      setError('Enter a valid counter amount');
-      return;
+      setError('Enter a valid counter amount'); return;
     }
-    setActioning(true);
+    setActioning(true); setError('');
     try {
       await axios.put(`${API}/bids/${bid.id}/counter`, {
         counter_amount: parseFloat(counterAmount),
         counter_message: counterMessage,
       }, getAuthHeader());
-      setShowCounter(false);
-      setCounterAmount('');
-      setCounterMessage('');
+      setShowCounter(false); setCounterAmount(''); setCounterMessage('');
+      setBid(prev => ({ ...prev, status: 'countered', counter_amount: parseFloat(counterAmount) }));
       onBidStatusChange && onBidStatusChange(bid.id, 'countered');
       await fetchMessages();
     } catch (err) {
@@ -124,7 +139,7 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
   };
 
   const handleWithdraw = async () => {
-    setActioning(true);
+    setActioning(true); setError('');
     try {
       await axios.put(`${API}/bids/${bid.id}/withdraw`, {}, getAuthHeader());
       onBidStatusChange && onBidStatusChange(bid.id, 'withdrawn');
@@ -136,11 +151,43 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
     }
   };
 
+  // ── Freelancer 2-way handshake ──
+  const handleFreelancerConfirm = async () => {
+    setActioning(true); setError('');
+    try {
+      await axios.put(`${API}/bids/${bid.id}/confirm`, {}, getAuthHeader());
+      setBid(prev => ({ ...prev, status: 'accepted' }));
+      onBidStatusChange && onBidStatusChange(bid.id, 'accepted');
+      await fetchMessages();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to confirm offer');
+    } finally {
+      setActioning(false);
+    }
+  };
+
+  const handleFreelancerDecline = async () => {
+    setActioning(true); setError('');
+    try {
+      await axios.put(`${API}/bids/${bid.id}/decline`, {}, getAuthHeader());
+      setBid(prev => ({ ...prev, status: 'pending', final_amount: null }));
+      onBidStatusChange && onBidStatusChange(bid.id, 'pending');
+      await fetchMessages();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to decline offer');
+    } finally {
+      setActioning(false);
+    }
+  };
+
   if (!bid || !isOpen) return null;
 
-  const canAct = isClientView && (bid.status === 'pending' || bid.status === 'countered');
-  const canWithdraw = !isClientView && (bid.status === 'pending' || bid.status === 'countered');
-  const si = statusInfo[bid.status] || statusInfo.pending;
+  const currentStatus = bid.status;
+  const canClientAct = isClientView && ['pending', 'countered'].includes(currentStatus);
+  const canWithdraw = !isClientView && ['pending', 'countered'].includes(currentStatus);
+  const freelancerMustConfirm = !isClientView && currentStatus === 'awaiting_freelancer';
+  const finalAmount = bid.final_amount || bid.counter_amount || bid.proposed_amount;
+  const si = statusInfo[currentStatus] || statusInfo.pending;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end">
@@ -148,7 +195,8 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="relative z-10 w-full sm:w-[480px] h-full sm:h-[90vh] sm:max-h-[700px] sm:mr-4 sm:my-4 bg-gray-950 border border-gray-700 sm:rounded-2xl flex flex-col shadow-2xl">
+      <div className="relative z-10 w-full sm:w-[480px] h-full sm:h-[90vh] sm:max-h-[720px] sm:mr-4 sm:my-4 bg-gray-950 border border-gray-700 sm:rounded-2xl flex flex-col shadow-2xl">
+
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <div className="flex items-center gap-3">
@@ -183,17 +231,76 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
               <span className="font-bold">Ξ{bid.counter_amount}</span>
             </div>
           )}
-          <div className="flex items-center gap-1 text-gray-500 text-xs">
+          {bid.final_amount && (
+            <div className="flex items-center gap-1 text-violet-300">
+              <Handshake className="w-3 h-3" />
+              <span className="text-gray-400 text-xs">Agreed:</span>
+              <span className="font-bold">Ξ{bid.final_amount}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1 text-gray-500 text-xs ml-auto">
             <Clock className="w-3 h-3" />
             {new Date(bid.created_at).toLocaleDateString()}
           </div>
         </div>
 
-        {/* Initial cover message */}
+        {/* Cover message */}
         <div className="px-4 py-3 bg-gray-900/30 border-b border-gray-800">
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Cover Message</p>
           <p className="text-gray-300 text-sm leading-relaxed">{bid.message}</p>
         </div>
+
+        {/* ── 2-way Handshake Banner (Freelancer only) ── */}
+        {freelancerMustConfirm && (
+          <div className="px-4 py-4 bg-violet-500/10 border-b border-violet-500/30">
+            <div className="flex items-start gap-3">
+              <Handshake className="w-5 h-5 text-violet-400 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="text-violet-300 font-semibold text-sm">Client has approved your bid!</p>
+                <p className="text-violet-400/80 text-xs mt-0.5">
+                  Agreed amount: <span className="font-bold text-emerald-400">Ξ{finalAmount}</span>
+                </p>
+                <p className="text-gray-400 text-xs mt-1">
+                  Please confirm to lock in the deal, or decline to return to negotiation.
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    size="sm"
+                    onClick={handleFreelancerConfirm}
+                    disabled={isActioning}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <ThumbsUp className="w-3 h-3 mr-1.5" />
+                    {isActioning ? 'Confirming…' : 'Confirm & Accept'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleFreelancerDecline}
+                    disabled={isActioning}
+                    variant="outline"
+                    className="flex-1 border-red-500/50 text-red-400 hover:bg-red-500/10"
+                  >
+                    <ThumbsDown className="w-3 h-3 mr-1.5" />
+                    Decline
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Awaiting freelancer — client view */}
+        {isClientView && currentStatus === 'awaiting_freelancer' && (
+          <div className="px-4 py-3 bg-violet-500/10 border-b border-violet-500/30">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-violet-400" />
+              <p className="text-violet-300 text-sm">
+                Waiting for <span className="font-semibold">{bid.freelancer_name}</span> to confirm the offer at{' '}
+                <span className="text-emerald-400 font-bold">Ξ{finalAmount}</span>
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Messages area */}
         <ScrollArea className="flex-1 p-4">
@@ -209,6 +316,16 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
             <div className="space-y-3">
               {messages.map((msg, i) => {
                 const isMe = msg.sender_id === currentUser?.id;
+                const isSystem = msg.message.startsWith('✅') || msg.message.startsWith('🤝') || msg.message.startsWith('↩️');
+                if (isSystem) {
+                  return (
+                    <div key={i} className="flex justify-center">
+                      <div className="bg-gray-800/60 border border-gray-700 px-4 py-2 rounded-full text-xs text-gray-400 text-center max-w-[90%]">
+                        {msg.message}
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[80%] ${isMe ? 'order-2' : 'order-1'}`}>
@@ -243,7 +360,7 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
           </div>
         )}
 
-        {/* Counter Offer Form (shown conditionally) */}
+        {/* Counter Offer Form */}
         {showCounter && (
           <form onSubmit={handleCounter} className="p-4 bg-gray-900 border-t border-gray-700 space-y-3">
             <p className="text-sm text-blue-400 font-medium">Send Counter Offer</p>
@@ -279,7 +396,7 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
         )}
 
         {/* Client Actions */}
-        {canAct && !showCounter && (
+        {canClientAct && !showCounter && (
           <div className="p-3 border-t border-gray-700 grid grid-cols-3 gap-2">
             <Button
               size="sm"
@@ -287,7 +404,7 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
               disabled={isActioning}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              <CheckCircle className="w-3 h-3 mr-1" /> Accept
+              <CheckCircle className="w-3 h-3 mr-1" /> Approve
             </Button>
             <Button
               size="sm"
@@ -324,24 +441,35 @@ const BidChatPanel = ({ bid, isOpen, onClose, currentUser, isClientView, onBidSt
           </div>
         )}
 
-        {/* Message input */}
-        <form onSubmit={sendMessage} className="p-3 border-t border-gray-700 flex gap-2">
-          <Input
-            value={newMessage}
-            onChange={e => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1 bg-gray-800 border-gray-600 text-white placeholder-gray-500 focus:border-teal-500 text-sm"
-            disabled={isSending}
-          />
-          <Button
-            type="submit"
-            size="sm"
-            disabled={isSending || !newMessage.trim()}
-            className="bg-teal-600 hover:bg-teal-700 text-white px-4"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
-        </form>
+        {/* Message input — disabled once deal is locked */}
+        {!['accepted', 'rejected', 'withdrawn', 'paid'].includes(currentStatus) && (
+          <form onSubmit={sendMessage} className="p-3 border-t border-gray-700 flex gap-2">
+            <Input
+              value={newMessage}
+              onChange={e => setNewMessage(e.target.value)}
+              placeholder="Type a message..."
+              className="flex-1 bg-gray-800 border-gray-600 text-white placeholder-gray-500 focus:border-teal-500 text-sm"
+              disabled={isSending}
+            />
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isSending || !newMessage.trim()}
+              className="bg-teal-600 hover:bg-teal-700 text-white px-4"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </form>
+        )}
+
+        {/* Locked state footer */}
+        {['accepted', 'paid'].includes(currentStatus) && (
+          <div className="p-3 border-t border-gray-700 text-center">
+            <p className="text-xs text-gray-500">
+              {currentStatus === 'paid' ? '💸 Payment released. Project complete.' : '🤝 Deal locked — work in progress.'}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
