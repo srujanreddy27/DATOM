@@ -1209,6 +1209,11 @@
     // Optimized initialization - faster startup
     try {
       firebaseConfig = loadFirebaseConfig();
+      
+      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        firebaseConfig.authDomain = window.location.host;
+      }
+      
       firebase.initializeApp(firebaseConfig);
       auth = firebase.auth();
       db = firebase.firestore();
