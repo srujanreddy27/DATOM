@@ -58,7 +58,7 @@ except Exception as e:
     logger.error("Falling back to REST API authentication")
 
 # JWT Configuration
-SECRET_KEY = os.environ.get('SECRET_KEY')
+SECRET_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 if not SECRET_KEY or len(SECRET_KEY) < 32:
     raise ValueError("SECRET_KEY must be set in environment variables and be at least 32 characters long")
 ALGORITHM = "HS256"
@@ -66,6 +66,15 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # Create the main app without a prefix
 app = FastAPI()
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
@@ -84,6 +93,35 @@ async def startup_event():
         logger.warning(f"Firebase warmup failed (will use REST API): {e}")
     
     logger.info("Server warmup completed")
+
+    # Start the keep-alive task to prevent the free server from spinning down
+    import asyncio
+    asyncio.create_task(keep_alive_task())
+
+async def keep_alive_task():
+    """Background task to keep the server awake on free hosting tiers by pinging itself."""
+    import asyncio
+    import requests
+    
+    # Render exposes RENDER_EXTERNAL_URL automatically.
+    url = os.environ.get("RENDER_EXTERNAL_URL")
+    if not url:
+        logger.info("No RENDER_EXTERNAL_URL found. Keep-alive self-pinging is disabled.")
+        return
+        
+    logger.info(f"Keep-alive task started. Target URL: {url}")
+    while True:
+        try:
+            # Sleep for 10 minutes (600 seconds) before pinging
+            await asyncio.sleep(600)
+            logger.info("Sending keep-alive ping to prevent server sleep...")
+            
+            # Send the request
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, lambda: requests.get(f"{url}/api/"))
+        except Exception as e:
+            logger.error(f"Keep-alive ping failed: {e}")
+
 
 # Define Models
 class Task(BaseModel):
