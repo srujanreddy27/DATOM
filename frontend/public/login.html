@@ -1387,47 +1387,7 @@
       }
     }
 
-    // Handle redirect result for Google sign-in
-    if (auth) {
-      auth.getRedirectResult().then(async (result) => {
-        if (result.credential) {
-          // User signed in via redirect
-          try {
-            await ensureUserDoc(result.user, 'google_redirect');
-            alert('Signed in with Google!');
-          } catch (e) {
-            console.error('Error handling redirect result:', e);
-          }
-        }
-      }).catch((error) => {
-        console.error('Redirect result error:', error);
-        const errorCode = error.code;
-        const errorMessage = error.message;
-
-        // Show error message based on current form
-        const msg = errorMessage || 'Google sign-in failed';
-        if (!signupForm.classList.contains('hidden')) {
-          signupErrorMessage.textContent = msg;
-          signupErrorMessage.classList.add('show');
-          setTimeout(() => signupErrorMessage.classList.remove('show'), 3000);
-        } else {
-          errorMessage.textContent = msg;
-          errorMessage.classList.add('show');
-          setTimeout(() => errorMessage.classList.remove('show'), 3000);
-        }
-      });
-    }
-
-    // Optional: react to auth state (hook for redirect)
-    if (auth) {
-      auth.onAuthStateChanged(async (user) => {
-        if (user) {
-          try { await ensureUserDoc(user, 'auth_state'); } catch (e) { }
-          // You can redirect after login if desired:
-          // window.location.href = '/';
-        }
-      });
-    }
+    // Removed duplicate global auth listeners that were consuming redirect state
 
     const pupils = document.querySelectorAll('.pupil');
     const mouths = document.querySelectorAll('.mouth');
@@ -2016,6 +1976,12 @@
               return verifyWithBackend(idToken, loadingText, progressBar, loadingEl);
             })
             .catch(err => {
+              if (err.code === 'auth/popup-blocked' || err.message.includes('popup')) {
+                console.warn('Popup permanently blocked by browser, falling back to redirect auth...');
+                loadingText.textContent = 'Redirecting to Google...';
+                auth.signInWithRedirect(provider);
+                return;
+              }
               console.error('Google sign-in error:', err);
               handleSignInError(err, loadingEl, loadingText);
             });
