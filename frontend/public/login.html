@@ -1952,9 +1952,7 @@
             handleSignInError(new Error("Session refreshed. Please click 'Continue with Google' again."), loadingEl, loadingText);
             return;
           }
-
-
-
+        }
         // Optimize provider setup for speed
         const provider = new firebase.auth.GoogleAuthProvider();
         provider.addScope('email');
