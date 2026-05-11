@@ -4,6 +4,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { useNavigate } from 'react-router-dom';
 import {
   DollarSign,
   Wallet,
@@ -15,18 +16,42 @@ import {
   AlertCircle,
   User
 } from 'lucide-react';
-import SubmissionModal from './SubmissionModal';
-import TaskSubmissions from './TaskSubmissions';
 import axios from 'axios';
+import SubmitBidModal from './SubmitBidModal';
+import BidComparisonView from './BidComparisonView';
+import ModifyEscrowModal from './ModifyEscrowModal';
+import SubmissionModal from './SubmissionModal';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
 const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
+  const navigate = useNavigate();
   const [showSubmissionModal, setShowSubmissionModal] = useState(false);
   const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
+  const [showSubmitBidModal, setShowSubmitBidModal] = useState(false);
+  const [showBidComparisonModal, setShowBidComparisonModal] = useState(false);
+  const [showModifyEscrowModal, setShowModifyEscrowModal] = useState(false);
   const [canSubmit, setCanSubmit] = useState({ can_submit: false, reason: '' });
   const [isCheckingSubmission, setIsCheckingSubmission] = useState(false);
   const [existingSubmission, setExistingSubmission] = useState(null);
+  const [bids, setBids] = useState([]);
+
+  useEffect(() => {
+    const fetchBids = async () => {
+      if (!task || !currentUser) return;
+      try {
+        const token = localStorage.getItem('firebase_token');
+        if (!token) return;
+        const res = await axios.get(`${BACKEND_URL}/api/tasks/${task.id}/bids`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        setBids(res.data);
+      } catch (e) {
+        console.error("Error fetching bids", e);
+      }
+    };
+    fetchBids();
+  }, [task, currentUser]);
 
   // Check if user can submit work for this task (only for freelancers)
   useEffect(() => {
@@ -144,22 +169,32 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
 
     // If user is the task owner (client), show appropriate button based on funding status
     if (currentUser.user_type === 'client' && task.client === currentUser.username) {
-      // If task is not funded, show Fund Escrow button
+      // If task is not funded, show Fund Escrow and Review Bids buttons
       if (task.escrowStatus !== 'funded') {
         return (
-          <Button
-            size="sm"
-            onClick={() => {
-              if (onFundTask) {
-                onFundTask(task);
-              } else {
-                alert('Please fund the escrow to activate this task.');
-              }
-            }}
-            className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white"
-          >
-            Fund Escrow
-          </Button>
+          <div className="flex space-x-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowBidComparisonModal(true)}
+              className="border-teal-500 text-teal-400 hover:bg-teal-500 hover:text-white"
+            >
+              Review Bids ({bids.length})
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (onFundTask) {
+                  onFundTask(task);
+                } else {
+                  alert('Please fund the escrow to activate this task.');
+                }
+              }}
+              className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white"
+            >
+              Fund Escrow
+            </Button>
+          </div>
         );
       }
 
@@ -175,30 +210,61 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
         );
       }
       return (
-        <Button
-          size="sm"
-          onClick={() => setShowSubmissionsModal(true)}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-        >
-          View Submissions ({task.submissions || 0})
-        </Button>
+        <div className="flex space-x-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowModifyEscrowModal(true)}
+            className="border-gray-500 text-gray-300 hover:bg-gray-700 hover:text-white"
+          >
+            Modify Terms
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setShowSubmissionsModal(true)}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+          >
+            View Submissions ({task.submissions || 0})
+          </Button>
+        </div>
       );
     }
 
     // For freelancers, show submission-related buttons
     if (currentUser.user_type === 'freelancer') {
-      // If task is not funded, prevent submissions
+      // If task is not funded, they can bid
       if (task.escrowStatus !== 'funded') {
-        return (
-          <Button
-            size="sm"
-            className="bg-gray-600 text-gray-300 cursor-not-allowed"
-            disabled
-            title="Task must be funded before accepting submissions"
-          >
-            Not Funded
-          </Button>
-        );
+        const myBid = bids.find(b => b.freelancer_id === currentUser.id);
+        if (task.status === 'completed') {
+           return (
+            <Button size="sm" className="bg-gray-600 text-gray-300 cursor-not-allowed" disabled>
+              Task Completed
+            </Button>
+           );
+        }
+        if (myBid) {
+          return (
+            <div className="flex space-x-2">
+              <Button size="sm" onClick={() => navigate(`/messages?task=${task.id}&client=${task.client_id}&name=${encodeURIComponent(task.client)}`)} className="bg-gray-800 text-gray-300 hover:bg-gray-700">
+                Message Client
+              </Button>
+              <Button size="sm" onClick={() => setShowSubmitBidModal(true)} className="border-teal-500 text-teal-400 hover:bg-teal-500 hover:text-white" variant="outline">
+                Edit Bid 
+              </Button>
+            </div>
+          );
+        } else {
+          return (
+            <div className="flex space-x-2">
+              <Button size="sm" onClick={() => navigate(`/messages?task=${task.id}&client=${task.client_id}&name=${encodeURIComponent(task.client)}`)} className="bg-gray-800 text-gray-300 hover:bg-gray-700">
+                Message Client
+              </Button>
+              <Button size="sm" onClick={() => setShowSubmitBidModal(true)} className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white">
+                Place Bid
+              </Button>
+            </div>
+          );
+        }
       }
 
       // If task is completed, show appropriate message
@@ -456,6 +522,62 @@ const TaskCard = ({ task, onTaskUpdate, currentUser, onFundTask }) => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Submit Bid Modal */}
+      <SubmitBidModal
+        isOpen={showSubmitBidModal}
+        onClose={() => setShowSubmitBidModal(false)}
+        task={task}
+        currentUser={currentUser}
+        existingBid={bids.find(b => b.freelancer_id === currentUser?.id)}
+        onBidUpdate={(updatedBid) => {
+          if (!updatedBid) {
+            setBids(bids.filter(b => b.freelancer_id !== currentUser.id));
+          } else {
+            const hasExisting = bids.some(b => b.id === updatedBid.id);
+            setBids(hasExisting 
+              ? bids.map(b => b.id === updatedBid.id ? updatedBid : b)
+              : [...bids, updatedBid]
+            );
+          }
+        }}
+      />
+
+      {/* Bid Comparison Modal */}
+      {showBidComparisonModal && (
+        <Dialog open={showBidComparisonModal} onOpenChange={setShowBidComparisonModal}>
+          <DialogContent className="bg-gray-900 border-gray-800 text-white max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold text-teal-400">
+                Review Proposals
+              </DialogTitle>
+              <DialogDescription className="text-gray-300">
+                Compare bids from freelancers for "{task.title}"
+              </DialogDescription>
+            </DialogHeader>
+            <BidComparisonView 
+              taskId={task.id} 
+              onAcceptBid={(bid) => {
+                alert(`You accepted the bid from ${bid.freelancer_name} for ${bid.amount} ETH! \nNow please fund the escrow for this amount to activate the task.`);
+                setShowBidComparisonModal(false);
+                if (onFundTask) {
+                  onFundTask({...task, budget: bid.amount}); // pass the custom amount dynamically if supported
+                }
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Modify Escrow Modal */}
+      <ModifyEscrowModal
+        isOpen={showModifyEscrowModal}
+        onClose={() => setShowModifyEscrowModal(false)}
+        task={task}
+        onEscrowModified={(updatedTask) => {
+          if (onTaskUpdate) onTaskUpdate(updatedTask);
+        }}
+      />
     </>
   );
 };
