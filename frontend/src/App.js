@@ -2316,9 +2316,11 @@ const TasksPage = () => {
       const valueWei = ethers.parseEther(String(task.budget));
 
       console.log('📤 Sending transaction...');
-      const tx = await signer.sendTransaction({
-        from: selectedAccount,
-        to: ESCROW_ADDRESS,
+      const escrowAbi = ["function createTask(bytes32 taskId, uint256 budget) external payable"];
+      const contract = new ethers.Contract(ESCROW_ADDRESS, escrowAbi, signer);
+      const taskIdBytes32 = ethers.id(task.id);
+
+      const tx = await contract.createTask(taskIdBytes32, valueWei, {
         value: valueWei
       });
 
@@ -4436,17 +4438,17 @@ const ProjectPaymentPage = () => {
       const amountInWei = BigInt(Math.round(project.total_budget * 1e18));
       const amountHex = '0x' + amountInWei.toString(16);
 
-      const txParams = {
-        from: account,
-        to: ESCROW_ADDRESS,
-        value: amountHex,
-        gas: '0x5208', // 21000
-      };
+      const escrowAbi = ["function createTask(bytes32 taskId, uint256 budget) external payable"];
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner(account);
+      const contract = new ethers.Contract(ESCROW_ADDRESS, escrowAbi, signer);
+      const projectIdBytes32 = ethers.id(project.id);
 
-      const hash = await window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [txParams],
+      const tx = await contract.createTask(projectIdBytes32, amountInWei, {
+        value: amountInWei
       });
+      
+      const hash = tx.hash;
 
       setTxHash(hash);
       setStep('confirming');
