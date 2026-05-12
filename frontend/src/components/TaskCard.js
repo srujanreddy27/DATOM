@@ -21,6 +21,7 @@ import SubmitBidModal from './SubmitBidModal';
 import BidComparisonView from './BidComparisonView';
 import ModifyEscrowModal from './ModifyEscrowModal';
 import SubmissionModal from './SubmissionModal';
+import TaskSubmissions from './TaskSubmissions';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
