@@ -77,7 +77,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 const API = `${BACKEND_URL}/api`;
-const ESCROW_ADDRESS = process.env.REACT_APP_ESCROW_ADDRESS || "0xA54130603Aed8B222f9BE8F22F4F8ED458505A27";
+const ESCROW_ADDRESS = (process.env.REACT_APP_ESCROW_ADDRESS || "0xA54130603Aed8B222f9BE8F22F4F8ED458505A27").trim();
 const NETWORK_NAME = process.env.REACT_APP_NETWORK_NAME || "Datom Test Network";
 const RPC_URL = process.env.REACT_APP_RPC_URL || "http://127.0.0.1:8545";
 const CHAIN_ID = process.env.REACT_APP_CHAIN_ID || "31337";
@@ -4425,7 +4425,7 @@ const ProjectPaymentPage = () => {
     setError('');
     setIsPaying(true);
     try {
-      const ESCROW_ADDRESS = process.env.REACT_APP_ESCROW_ADDRESS || "0xA54130603Aed8B222f9BE8F22F4F8ED458505A27";
+      const ESCROW_ADDRESS = (process.env.REACT_APP_ESCROW_ADDRESS || "0xA54130603Aed8B222f9BE8F22F4F8ED458505A27").trim();
       if (!ESCROW_ADDRESS) {
         setError('Escrow contract address not configured. Please set REACT_APP_ESCROW_ADDRESS.');
         setIsPaying(false);
@@ -4521,7 +4521,7 @@ const ProjectPaymentPage = () => {
     </div>
   );
 
-  const ESCROW_ADDRESS = process.env.REACT_APP_ESCROW_ADDRESS || "0xA54130603Aed8B222f9BE8F22F4F8ED458505A27";
+  const ESCROW_ADDRESS = (process.env.REACT_APP_ESCROW_ADDRESS || "0xA54130603Aed8B222f9BE8F22F4F8ED458505A27").trim();
 
   return (
     <div className="min-h-screen bg-gray-950 pt-20 pb-12">
